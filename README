@@ -1,0 +1,3 @@
+A minimal screen brightness adjustment bar for X. Useful for desktop
+environments that do not include any kind of brightness adjusting tool (XMonad,
+Awesome, etc).
