@@ -3,13 +3,22 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 
-#define XSIZE 300
-#define YSIZE 25
+#define NRECT 20
+#define RECT_XSIZE 10
+#define RECT_YSIZE 20
+
+#define XSIZE (RECT_XSIZE * 20 + (NRECT - 1) + 4)
+#define YSIZE (RECT_YSIZE + 4)
+
+#define BRIGHTNESS_DIR "/sys/class/backlight/acpi_video0"
 
 typedef struct state {
 	Display *dpy;
 	Window root;
 	Window win;
+
+	float current_brightness;
+	float max_brightness;
 } state_t;
 
 Window createWindow(state_t *state)
@@ -26,7 +35,7 @@ Window createWindow(state_t *state)
 	vmask = CWOverrideRedirect | CWBackPixmap | CWEventMask;
 
 	x = DisplayWidth(state->dpy, screen) / 2 - (XSIZE / 2);
-	y = DisplayHeight(state->dpy, screen) * 7 / 8 - (YSIZE / 2);
+	y = DisplayHeight(state->dpy, screen) * 15 / 16 - (YSIZE / 2);
 
 	return
 	XCreateWindow(state->dpy, state->root, x, y, XSIZE, YSIZE, 0,
@@ -36,21 +45,52 @@ Window createWindow(state_t *state)
 
 void draw(state_t *state)
 {
-	GC green_gc;
-	XColor green_col;
+	GC context;
 	Colormap colormap;
-	char *green = "#00FF00";
+
+	XColor xcolor_fg1, xcolor_fg2, xcolor_bg;
+	char *color_fg1 = "#3475aa";
+	char *color_fg2 = "#909090";
+	char *color_bg = "#1a1a1a";
+
+	int i, base_x_offset, base_y_offset;
+
+	float brightness_percent =
+		state->current_brightness / state->max_brightness*100;
 
 	colormap = DefaultColormap(state->dpy, 0);
-	green_gc = XCreateGC(state->dpy, state->win, 0, 0);
+	context = XCreateGC(state->dpy, state->win, 0, 0);
 
-	XParseColor(state->dpy, colormap, green, &green_col);
-	XAllocColor(state->dpy, colormap, &green_col);
+	XParseColor(state->dpy, colormap, color_fg1, &xcolor_fg1);
+	XAllocColor(state->dpy, colormap, &xcolor_fg1);
 
-	XSetForeground(state->dpy, green_gc, green_col.pixel);
+	XParseColor(state->dpy, colormap, color_fg2, &xcolor_fg2);
+	XAllocColor(state->dpy, colormap, &xcolor_fg2);
 
-	XDrawRectangle(state->dpy, state->win, green_gc, 1, 1, 10, 20);
-	XDrawRectangle(state->dpy, state->win, green_gc, 16, 1, 10, 20);
+	XParseColor(state->dpy, colormap, color_bg, &xcolor_bg);
+	XAllocColor(state->dpy, colormap, &xcolor_bg);
+
+	XSetForeground(state->dpy, context, xcolor_fg2.pixel);
+	XDrawRectangle(state->dpy, state->win, context, 0, 0, XSIZE - 1, YSIZE - 1);
+	XSetForeground(state->dpy, context, xcolor_bg.pixel);
+	XFillRectangle(state->dpy, state->win, context, 1, 1, XSIZE - 2, YSIZE - 2);
+
+	XSetForeground(state->dpy, context, xcolor_fg1.pixel);
+
+	base_x_offset = 2;
+	base_y_offset = 2;
+
+	for (i = 0; i < NRECT; i++) {
+		int x_offset = base_x_offset + i * (RECT_XSIZE + 1);
+		int y_offset = base_y_offset;
+
+		XDrawRectangle(state->dpy, state->win, context,
+			x_offset, y_offset, RECT_XSIZE - 1, RECT_YSIZE - 1);
+		if (brightness_percent >= 5 * (i + 1)) {
+			XFillRectangle(state->dpy, state->win, context,
+				x_offset + 2, y_offset + 2, RECT_XSIZE - 4, RECT_YSIZE - 4);
+		}
+	}
 }
 
 void handle_event(state_t *state, XEvent ev)
@@ -78,6 +118,7 @@ void run(state_t *state)
 
 void cleanup(state_t *state)
 {
+	XDestroyWindow(state->dpy, state->win);
 	free(state);
 }
 
@@ -85,6 +126,26 @@ int main(int argc, char **argv)
 {
 	state_t *state = malloc(sizeof(state_t));
 	XSetWindowAttributes wa;
+
+	FILE *fbr, *fmax;
+
+	fbr = fopen(BRIGHTNESS_DIR "/brightness", "r");
+	if (fbr == NULL) {
+		fprintf(stderr, "Unable to read current brightness from %s.", BRIGHTNESS_DIR);
+		goto end;
+	}
+
+	fscanf(fbr, "%f", &state->current_brightness);
+	fclose(fbr);
+
+	fmax = fopen(BRIGHTNESS_DIR "/max_brightness", "r");
+	if (fmax == NULL) {
+		fprintf(stderr, "Unable to read max brightness from %s.", BRIGHTNESS_DIR);
+		goto end;
+	}
+
+	fscanf(fmax, "%f", &state->max_brightness);
+	fclose(fmax);
 
 	state->dpy = XOpenDisplay(NULL);
 	state->root = RootWindow(state->dpy, 0);
@@ -95,6 +156,7 @@ int main(int argc, char **argv)
 
 	run(state);
 
+end:
 	cleanup(state);
 	return 0;
 }
