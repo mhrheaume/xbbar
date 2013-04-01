@@ -31,7 +31,7 @@
 #define DEBUG_PRINTF(x) do {} while (0)
 #endif
 
-#define NRECT 20
+#define NRECT 10
 #define RECT_XSIZE 10
 #define RECT_YSIZE 20
 
@@ -42,19 +42,22 @@
 #define BRIGHTNESS_CURRENT BRIGHTNESS_DIR "/brightness"
 #define BRIGHTNESS_MAX BRIGHTNESS_DIR "/max_brightness"
 
+#define BRIGHTNESS_STEP 1
+
 typedef struct state {
 	Display *dpy;
 	Window root;
 	Window win;
 
-	float current_brightness;
-	float max_brightness;
+	int current_brightness;
+	int max_brightness;
 
 	int running;
 } state_t;
 
 static Window createWindow(state_t *state);
 static void draw(state_t *state);
+static float get_fill_percent(int br, int lower, int upper);
 
 static void write_brightness(state_t *state);
 static void brightness_up(state_t *state);
@@ -65,11 +68,6 @@ static void handle_event(state_t *staet, XEvent ev);
 
 static void run(state_t *state);
 static void cleanup(state_t *state);
-
-static inline float round_percent(float current, float max)
-{
-	return roundf((current/max*100.0) / 5.0) * 5.0;
-}
 
 Window createWindow(state_t *state)
 {
@@ -88,9 +86,18 @@ Window createWindow(state_t *state)
 	y = DisplayHeight(state->dpy, screen) * 15 / 16 - (YSIZE / 2);
 
 	return
-	XCreateWindow(state->dpy, state->root, x, y, XSIZE, YSIZE, 0,
-		DefaultDepth(state->dpy, screen), CopyFromParent,
-		DefaultVisual(state->dpy, screen), vmask, &wa);
+	XCreateWindow(state->dpy,
+		state->root,
+		x,
+		y,
+		XSIZE,
+		YSIZE,
+		0,
+		DefaultDepth(state->dpy, screen),
+		CopyFromParent,
+		DefaultVisual(state->dpy, screen),
+		vmask,
+		&wa);
 }
 
 void draw(state_t *state)
@@ -105,8 +112,7 @@ void draw(state_t *state)
 
 	int i, base_x_offset, base_y_offset;
 
-	float brightness_percent =
-		state->current_brightness / state->max_brightness*100;
+	int brightness_percent = state->current_brightness * 100 / state->max_brightness;
 
 	colormap = DefaultColormap(state->dpy, 0);
 	context = XCreateGC(state->dpy, state->win, 0, 0);
@@ -134,13 +140,35 @@ void draw(state_t *state)
 		int x_offset = base_x_offset + i * (RECT_XSIZE + 1);
 		int y_offset = base_y_offset;
 
-		XDrawRectangle(state->dpy, state->win, context,
-			x_offset, y_offset, RECT_XSIZE - 1, RECT_YSIZE - 1);
-		if (brightness_percent >= 5 * (i + 1)) {
-			XFillRectangle(state->dpy, state->win, context,
-				x_offset + 2, y_offset + 2, RECT_XSIZE - 4, RECT_YSIZE - 4);
-		}
+		float fill_percent = get_fill_percent(brightness_percent,
+			i * (100 / NRECT),
+			(i + 1) * (100 / NRECT));
+
+		XDrawRectangle(state->dpy,
+			state->win,
+			context,
+			x_offset,
+			y_offset,
+			RECT_XSIZE - 1,
+			RECT_YSIZE - 1);
+
+		XFillRectangle(state->dpy,
+			state->win,
+			context,
+			x_offset + 2,
+			y_offset + 2,
+			(int)((RECT_XSIZE - 4) * fill_percent),
+			RECT_YSIZE - 4);
 	}
+}
+
+float get_fill_percent(int brightness_percent, int lower, int upper) {
+	// Return a number between 0 and 1, representing the percentage of the
+	// rectangle to be filled.
+	return
+		brightness_percent >= upper ? 1.0 :
+		brightness_percent <= lower ? 0 :
+		(float)(brightness_percent - lower) / (float)(upper - lower);
 }
 
 void write_brightness(state_t *state)
@@ -154,36 +182,31 @@ void write_brightness(state_t *state)
 		return;
 	}
 
-	fprintf(fbr, "%d", (int)state->current_brightness);
+	DEBUG_PRINTF(("current: %d; max: %d; perc: %d",
+		state->current_brightness,
+		state->max_brightness,
+		state->current_brightness * 100 / state->max_brightness));
+
+	fprintf(fbr, "%d", state->current_brightness);
 	fclose(fbr);
 }
 
 void brightness_up(state_t *state)
 {
-	float brightness_percent =
-		round_percent(state->current_brightness, state->max_brightness);
-	float next = (brightness_percent + 5.0) / 100.0;
-
-	if (next > 1) {
-		next = 1;
+	state->current_brightness += BRIGHTNESS_STEP;
+	if (state->current_brightness > state->max_brightness) {
+		state->current_brightness = state->max_brightness;
 	}
-
-	state->current_brightness = next * state->max_brightness;
 
 	write_brightness(state);
 }
 
 void brightness_down(state_t *state)
 {
-	float brightness_percent =
-		round_percent(state->current_brightness, state->max_brightness);
-	float next = (brightness_percent - 5.0) / 100.0;
-
-	if (next < 0) {
-		next = 0;
+	state->current_brightness -= BRIGHTNESS_STEP;
+	if (state->current_brightness < 0) {
+		state->current_brightness = 0;
 	}
-
-	state->current_brightness = next * state->max_brightness;
 
 	write_brightness(state);
 }
@@ -197,11 +220,11 @@ void handle_kpress(state_t *state, XKeyEvent *e)
 	switch (sym) {
 	case XF86XK_MonBrightnessUp:
 		brightness_up(state);
-		draw(state);
+		// draw(state);
 		break;
 	case XF86XK_MonBrightnessDown:
 		brightness_down(state);
-		draw(state);
+		// draw(state);
 		break;
 	}
 }
@@ -251,7 +274,7 @@ int main(int argc, char **argv)
 		goto end;
 	}
 
-	fscanf(fbr, "%f", &state->current_brightness);
+	fscanf(fbr, "%d", &state->current_brightness);
 	fclose(fbr);
 
 	fmax = fopen(BRIGHTNESS_MAX, "r");
@@ -261,7 +284,7 @@ int main(int argc, char **argv)
 		goto end;
 	}
 
-	fscanf(fmax, "%f", &state->max_brightness);
+	fscanf(fmax, "%d", &state->max_brightness);
 	fclose(fmax);
 
 	state->dpy = XOpenDisplay(NULL);
