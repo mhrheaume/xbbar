@@ -23,6 +23,14 @@
 #include <X11/Xutil.h>
 #include <X11/XF86keysym.h>
 
+#define DEBUG
+
+#ifdef DEBUG
+#define DEBUG_PRINTF(x) printf x
+#else
+#define DEBUG_PRINTF(x) do {} while (0)
+#endif
+
 #define NRECT 20
 #define RECT_XSIZE 10
 #define RECT_YSIZE 20
@@ -45,7 +53,25 @@ typedef struct state {
 	int running;
 } state_t;
 
-static Window createWindow(state_t *state)
+static Window createWindow(state_t *state);
+static void draw(state_t *state);
+
+static void write_brightness(state_t *state);
+static void brightness_up(state_t *state);
+static void brightness_down(state_t *state);
+
+static void handle_kpress(state_t *state, XKeyEvent *e);
+static void handle_event(state_t *staet, XEvent ev);
+
+static void run(state_t *state);
+static void cleanup(state_t *state);
+
+static inline float round_percent(float current, float max)
+{
+	return roundf((current/max*100.0) / 5.0) * 5.0;
+}
+
+Window createWindow(state_t *state)
 {
 	XSetWindowAttributes wa;
 	int screen, x, y;
@@ -67,7 +93,7 @@ static Window createWindow(state_t *state)
 		DefaultVisual(state->dpy, screen), vmask, &wa);
 }
 
-static void draw(state_t *state)
+void draw(state_t *state)
 {
 	GC context;
 	Colormap colormap;
@@ -117,7 +143,7 @@ static void draw(state_t *state)
 	}
 }
 
-static void write_brightness(state_t *state)
+void write_brightness(state_t *state)
 {
 	FILE *fbr = fopen(BRIGHTNESS_DIR "/brightness", "w");
 	if (fbr == NULL) {
@@ -132,12 +158,7 @@ static void write_brightness(state_t *state)
 	fclose(fbr);
 }
 
-static inline float round_percent(float current, float max)
-{
-	return roundf((current/max*100.0) / 5.0) * 5.0;
-}
-
-static void brightness_up(state_t *state)
+void brightness_up(state_t *state)
 {
 	float brightness_percent =
 		round_percent(state->current_brightness, state->max_brightness);
@@ -152,7 +173,7 @@ static void brightness_up(state_t *state)
 	write_brightness(state);
 }
 
-static void brightness_down(state_t *state)
+void brightness_down(state_t *state)
 {
 	float brightness_percent =
 		round_percent(state->current_brightness, state->max_brightness);
@@ -168,7 +189,7 @@ static void brightness_down(state_t *state)
 }
 
 
-static void handle_kpress(state_t *state, XKeyEvent *e)
+void handle_kpress(state_t *state, XKeyEvent *e)
 {
 	KeySym sym;
 
@@ -185,7 +206,7 @@ static void handle_kpress(state_t *state, XKeyEvent *e)
 	}
 }
 
-static void handle_event(state_t *state, XEvent ev)
+void handle_event(state_t *state, XEvent ev)
 {
 	switch (ev.type) {
 	case Expose:
@@ -202,16 +223,16 @@ static void handle_event(state_t *state, XEvent ev)
 	}
 }
 
-static void run(state_t *state)
+void run(state_t *state)
 {
 	XEvent ev;
 
-	while (!XNextEvent(state->dpy, &ev)) {
+	while (state->running && !XNextEvent(state->dpy, &ev)) {
 		handle_event(state, ev);
 	}
 }
 
-static void cleanup(state_t *state)
+void cleanup(state_t *state)
 {
 	XDestroyWindow(state->dpy, state->win);
 	free(state);
