@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Werror -lX11
+CFLAGS = -Wall -Werror -lX11 -lm
 
 EXEC = xbbar
 
