@@ -19,11 +19,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <unistd.h>
+
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/XF86keysym.h>
-
-#define DEBUG
 
 #ifdef DEBUG
 #define DEBUG_PRINTF(x) printf x
@@ -32,10 +32,10 @@
 #endif
 
 #define NRECT 10
-#define RECT_XSIZE 10
+#define RECT_XSIZE 12
 #define RECT_YSIZE 20
 
-#define XSIZE (RECT_XSIZE * 20 + (NRECT - 1) + 4)
+#define XSIZE (RECT_XSIZE * NRECT + (NRECT - 1) + 4)
 #define YSIZE (RECT_YSIZE + 4)
 
 #define BRIGHTNESS_DIR "/sys/class/backlight/acpi_video0"
@@ -65,6 +65,7 @@ static void brightness_down(state_t *state);
 
 static void handle_kpress(state_t *state, XKeyEvent *e);
 static void handle_event(state_t *staet, XEvent ev);
+static int grab_keyboard(state_t *state);
 
 static void run(state_t *state);
 static void cleanup(state_t *state);
@@ -175,14 +176,14 @@ void write_brightness(state_t *state)
 {
 	FILE *fbr = fopen(BRIGHTNESS_DIR "/brightness", "w");
 	if (fbr == NULL) {
-		fprintf(stderr, "Unable to write current brightness to %s",
+		fprintf(stderr, "Unable to write current brightness to %s.\n",
 			BRIGHTNESS_MAX);
 
 		state->running = 0;
 		return;
 	}
 
-	DEBUG_PRINTF(("current: %d; max: %d; perc: %d",
+	DEBUG_PRINTF(("current: %d; max: %d; perc: %d\n",
 		state->current_brightness,
 		state->max_brightness,
 		state->current_brightness * 100 / state->max_brightness));
@@ -219,12 +220,17 @@ void handle_kpress(state_t *state, XKeyEvent *e)
 	XLookupString(e, NULL, 0, &sym, NULL);
 	switch (sym) {
 	case XF86XK_MonBrightnessUp:
+	case XK_k:
 		brightness_up(state);
-		// draw(state);
+		draw(state);
 		break;
 	case XF86XK_MonBrightnessDown:
+	case XK_j:
 		brightness_down(state);
-		// draw(state);
+		draw(state);
+		break;
+	case XK_Escape:
+		state->running = 0;
 		break;
 	}
 }
@@ -246,6 +252,27 @@ void handle_event(state_t *state, XEvent ev)
 	}
 }
 
+int grab_keyboard(state_t *state) {
+	unsigned int len;
+
+	for (len = 100; len; len--) {
+		int result = XGrabKeyboard(state->dpy,
+			state->root,
+			True,
+			GrabModeAsync,
+			GrabModeAsync,
+			CurrentTime);
+
+		if (result == GrabSuccess) {
+			break;
+		}
+
+		usleep(1000);
+	}
+
+	return len > 0;
+}
+
 void run(state_t *state)
 {
 	XEvent ev;
@@ -258,6 +285,7 @@ void run(state_t *state)
 void cleanup(state_t *state)
 {
 	XDestroyWindow(state->dpy, state->win);
+	XCloseDisplay(state->dpy);
 	free(state);
 }
 
@@ -269,7 +297,7 @@ int main(int argc, char **argv)
 
 	fbr = fopen(BRIGHTNESS_CURRENT, "r");
 	if (fbr == NULL) {
-		fprintf(stderr, "Unable to read current brightness from %s.",
+		fprintf(stderr, "Unable to read current brightness from %s.\n",
 			BRIGHTNESS_CURRENT);
 		goto end;
 	}
@@ -279,7 +307,7 @@ int main(int argc, char **argv)
 
 	fmax = fopen(BRIGHTNESS_MAX, "r");
 	if (fmax == NULL) {
-		fprintf(stderr, "Unable to read max brightness from %s.",
+		fprintf(stderr, "Unable to read max brightness from %s.\n",
 			BRIGHTNESS_MAX);
 		goto end;
 	}
@@ -291,7 +319,7 @@ int main(int argc, char **argv)
 	state->root = RootWindow(state->dpy, 0);
 	state->win = createWindow(state);
 
-	state->running = 1;
+	state->running = grab_keyboard(state);
 
 	XMapRaised(state->dpy, state->win);
 	XFlush(state->dpy);

@@ -3,14 +3,18 @@ CFLAGS = -Wall -Werror -lX11 -lm
 
 EXEC = xbbar
 
-src = xbbar.c
+OBJS := $(patsubst %.c,%.o,$(wildcard *.c))
 
 .PHONY: all
 all : ${EXEC}
 
-${EXEC} :
-	${CC} ${CFLAGS} -o ${EXEC} ${src}
+${EXEC} : ${OBJS}
+	${CC} ${CFLAGS} -o ${EXEC} ${OBJS}
+
+.PHONY : debug
+debug : CFLAGS += -DDEBUG -g
+debug : ${EXEC}
 
 .PHONY : clean
 clean:
-	@rm -f  ${EXEC}
+	@rm -f ${EXEC} ${OBJS}
