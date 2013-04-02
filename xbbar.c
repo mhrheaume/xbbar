@@ -227,12 +227,14 @@ void handle_kpress(state_t *state, XKeyEvent *e)
 	switch (sym) {
 	case XF86XK_MonBrightnessUp:
 	case XK_Up:
+	case XK_K:
 	case XK_k:
 		brightness_up(state);
 		draw(state);
 		break;
 	case XF86XK_MonBrightnessDown:
 	case XK_Down:
+	case XK_J:
 	case XK_j:
 		brightness_down(state);
 		draw(state);

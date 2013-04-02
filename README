@@ -1,3 +1,9 @@
 A minimal screen brightness adjustment bar for X. Useful for desktop
 environments that do not include any kind of brightness adjusting tool (XMonad,
 Awesome, etc).
+
+Instructions:
+- Run ./xbbar (you will likely have to run as root).
+- Use XK_MonBrightnessUp, Up, or K to increase brightness.
+- Use XK_MonBrightnessDown, Down, or J to decrease brightness.
+- Exit with ESC.
