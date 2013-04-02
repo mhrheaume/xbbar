@@ -20,10 +20,13 @@
 #include <stdlib.h>
 #include <math.h>
 #include <unistd.h>
+#include <string.h>
 
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/XF86keysym.h>
+
+#include "version.h"
 
 #ifdef DEBUG
 #define DEBUG_PRINTF(x) printf x
@@ -31,12 +34,13 @@
 #define DEBUG_PRINTF(x) do {} while (0)
 #endif
 
-#define NRECT 10
+#define NRECT 20
+#define PADDING 2
 #define RECT_XSIZE 12
 #define RECT_YSIZE 20
 
-#define XSIZE (RECT_XSIZE * NRECT + (NRECT - 1) + 4)
-#define YSIZE (RECT_YSIZE + 4)
+#define XSIZE (RECT_XSIZE * NRECT + PADDING * (NRECT - 1) + 2 * PADDING + 2)
+#define YSIZE (RECT_YSIZE + 2 * PADDING + 2)
 
 #define BRIGHTNESS_DIR "/sys/class/backlight/acpi_video0"
 #define BRIGHTNESS_CURRENT BRIGHTNESS_DIR "/brightness"
@@ -53,11 +57,12 @@ typedef struct state {
 	int max_brightness;
 
 	int running;
+	int error;
 } state_t;
 
 static Window createWindow(state_t *state);
 static void draw(state_t *state);
-static float get_fill_percent(int br, int lower, int upper);
+static float get_fill_percent(int br, float lower, float upper);
 
 static void write_brightness(state_t *state);
 static void brightness_up(state_t *state);
@@ -134,16 +139,16 @@ void draw(state_t *state)
 
 	XSetForeground(state->dpy, context, xcolor_fg1.pixel);
 
-	base_x_offset = 2;
-	base_y_offset = 2;
+	base_x_offset = 1 + PADDING;
+	base_y_offset = 1 + PADDING;
 
 	for (i = 0; i < NRECT; i++) {
-		int x_offset = base_x_offset + i * (RECT_XSIZE + 1);
+		int x_offset = base_x_offset + i * (RECT_XSIZE + PADDING);
 		int y_offset = base_y_offset;
 
 		float fill_percent = get_fill_percent(brightness_percent,
-			i * (100 / NRECT),
-			(i + 1) * (100 / NRECT));
+			i * (100.0 / (float)NRECT),
+			(i + 1) * (100.0 / (float)NRECT));
 
 		XDrawRectangle(state->dpy,
 			state->win,
@@ -163,7 +168,7 @@ void draw(state_t *state)
 	}
 }
 
-float get_fill_percent(int brightness_percent, int lower, int upper) {
+float get_fill_percent(int brightness_percent, float lower, float upper) {
 	// Return a number between 0 and 1, representing the percentage of the
 	// rectangle to be filled.
 	return
@@ -180,6 +185,7 @@ void write_brightness(state_t *state)
 			BRIGHTNESS_MAX);
 
 		state->running = 0;
+		state->error = 1;
 		return;
 	}
 
@@ -220,11 +226,13 @@ void handle_kpress(state_t *state, XKeyEvent *e)
 	XLookupString(e, NULL, 0, &sym, NULL);
 	switch (sym) {
 	case XF86XK_MonBrightnessUp:
+	case XK_Up:
 	case XK_k:
 		brightness_up(state);
 		draw(state);
 		break;
 	case XF86XK_MonBrightnessDown:
+	case XK_Down:
 	case XK_j:
 		brightness_down(state);
 		draw(state);
@@ -291,9 +299,21 @@ void cleanup(state_t *state)
 
 int main(int argc, char **argv)
 {
-	state_t *state = malloc(sizeof(state_t));
-
+	unsigned int i, error;
 	FILE *fbr, *fmax;
+	state_t *state;
+
+	for (i = 1; i < argc; i++) {
+		if (!strcmp(argv[i], "-v")) {
+			printf("xbbar-"XBBAR_VERSION"\n");
+			return 0;
+		} else {
+			fprintf(stderr, "usage: xbbar [-v]\n");
+			return 1;
+		}
+	}
+
+	state = malloc(sizeof(state_t));
 
 	fbr = fopen(BRIGHTNESS_CURRENT, "r");
 	if (fbr == NULL) {
@@ -320,6 +340,7 @@ int main(int argc, char **argv)
 	state->win = createWindow(state);
 
 	state->running = grab_keyboard(state);
+	state->error = 0;
 
 	XMapRaised(state->dpy, state->win);
 	XFlush(state->dpy);
@@ -327,6 +348,7 @@ int main(int argc, char **argv)
 	run(state);
 
 end:
+	error = state->error;
 	cleanup(state);
-	return 0;
+	return error;
 }
