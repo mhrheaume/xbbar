@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2011 Matthew Rheaume
+ *  Copyright (C) 2013 Matthew Rheaume
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -60,7 +60,7 @@ typedef struct state {
 	int error;
 } state_t;
 
-static Window createWindow(state_t *state);
+static Window create_window(state_t *state);
 static void draw(state_t *state);
 static float get_fill_percent(int br, float lower, float upper);
 
@@ -69,13 +69,13 @@ static void brightness_up(state_t *state);
 static void brightness_down(state_t *state);
 
 static void handle_kpress(state_t *state, XKeyEvent *e);
-static void handle_event(state_t *staet, XEvent ev);
+static void handle_event(state_t *state, XEvent ev);
 static int grab_keyboard(state_t *state);
 
 static void run(state_t *state);
 static void cleanup(state_t *state);
 
-Window createWindow(state_t *state)
+Window create_window(state_t *state)
 {
 	XSetWindowAttributes wa;
 	int screen, x, y;
@@ -339,7 +339,7 @@ int main(int argc, char **argv)
 
 	state->dpy = XOpenDisplay(NULL);
 	state->root = RootWindow(state->dpy, 0);
-	state->win = createWindow(state);
+	state->win = create_window(state);
 
 	state->running = grab_keyboard(state);
 	state->error = 0;
