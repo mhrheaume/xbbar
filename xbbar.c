@@ -49,15 +49,13 @@
 #define BRIGHTNESS_STEP 1
 
 typedef struct state {
-	Display *dpy;
-	Window root;
-	Window win;
-
 	int current_brightness;
 	int max_brightness;
 
 	int running;
 	int error;
+
+	draw_t *drawable;
 } state_t;
 
 static Window create_window(state_t *state);
@@ -301,23 +299,8 @@ void cleanup(state_t *state)
 	free(state);
 }
 
-int main(int argc, char **argv)
-{
-	unsigned int i, error;
+void state_init(state_t *state) {
 	FILE *fbr, *fmax;
-	state_t *state;
-
-	for (i = 1; i < argc; i++) {
-		if (!strcmp(argv[i], "-v")) {
-			printf("xbbar-"XBBAR_VERSION"\n");
-			return 0;
-		} else {
-			fprintf(stderr, "usage: xbbar [-v]\n");
-			return 1;
-		}
-	}
-
-	state = malloc(sizeof(state_t));
 
 	fbr = fopen(BRIGHTNESS_CURRENT, "r");
 	if (fbr == NULL) {
@@ -338,6 +321,30 @@ int main(int argc, char **argv)
 
 	fscanf(fmax, "%d", &state->max_brightness);
 	fclose(fmax);
+
+	state->drawable = malloc(sizeof(draw_t));
+	draw_init(state->drawable);
+}
+
+
+int main(int argc, char **argv)
+{
+	unsigned int i, error;
+
+	state_t *state = malloc(sizeof(state_t));
+	state_init(state);
+
+	for (i = 1; i < argc; i++) {
+		if (!strcmp(argv[i], "-v")) {
+			printf("xbbar-"XBBAR_VERSION"\n");
+			state->error = 0;
+			goto end;
+		} else {
+			fprintf(stderr, "usage: xbbar [-v]\n");
+			state->error = 1;
+			goto end;
+		}
+	}
 
 	state->dpy = XOpenDisplay(NULL);
 	state->root = RootWindow(state->dpy, 0);
