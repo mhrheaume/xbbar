@@ -168,7 +168,8 @@ void draw(state_t *state)
 	}
 }
 
-float get_fill_percent(int brightness_percent, float lower, float upper) {
+float get_fill_percent(int brightness_percent, float lower, float upper)
+{
 	// Return a number between 0 and 1, representing the percentage of the
 	// rectangle to be filled.
 	return
@@ -262,7 +263,8 @@ void handle_event(state_t *state, XEvent ev)
 	}
 }
 
-int grab_keyboard(state_t *state) {
+int grab_keyboard(state_t *state)
+{
 	unsigned int len;
 
 	for (len = 100; len; len--) {
