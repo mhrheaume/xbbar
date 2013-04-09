@@ -60,26 +60,26 @@ float get_fill_percent(int brightness_percent, float lower, float upper)
 		(float)(brightness_percent - lower) / (float)(upper - lower);
 }
 
-void draw_init(draw_attr d)
+void draw_init(draw_attr da, draw_t *draw)
 {
 	Colormap colormap;
 
 	draw->dpy = XOpenDisplay(NULL);
 	draw->root = RootWindow(draw->dpy, 0);
 
-	draw->nrect = d.nrect;
-	draw->padding = d.padding;
-	draw->rect_xsz = d.rect_xsz;
-	draw->rect_ysz = d.rect_ysz;
+	draw->nrect = da.nrect;
+	draw->padding = da.padding;
+	draw->rect_xsz = da.rect_xsz;
+	draw->rect_ysz = da.rect_ysz;
 
-	draw->win = create_window(draw, d.x, d.y);
+	draw->win = create_window(draw, da.x, da.y);
 	draw->context = XCreateGC(draw->dpy, draw->win, 0, 0);
 
 	colormap = DefaultColormap(draw->dpy, 0);
 
-	XAllocNamedColor(draw->dpy, colormap, d.fg1, &draw->fg1, &draw->fg1);
-	XAllocNamedColor(draw->dpy, colormap, d.fg2, &draw->fg2, &draw->fg2);
-	XAllocNamedColor(draw->dpy, colormap, d.bg, &draw->bg, &draw->bg);
+	XAllocNamedColor(draw->dpy, colormap, da.fg1, &draw->fg1, &draw->fg1);
+	XAllocNamedColor(draw->dpy, colormap, da.fg2, &draw->fg2, &draw->fg2);
+	XAllocNamedColor(draw->dpy, colormap, da.bg, &draw->bg, &draw->bg);
 }
 
 void get_attr_defaults(draw_attr_t *attr)

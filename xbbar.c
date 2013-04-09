@@ -34,14 +34,6 @@
 #define DEBUG_PRINTF(x) do {} while (0)
 #endif
 
-#define NRECT 20
-#define PADDING 2
-#define RECT_XSIZE 12
-#define RECT_YSIZE 20
-
-#define XSIZE (RECT_XSIZE * NRECT + PADDING * (NRECT - 1) + 2 * PADDING + 2)
-#define YSIZE (RECT_YSIZE + 2 * PADDING + 2)
-
 #define BRIGHTNESS_DIR "/sys/class/backlight/acpi_video0"
 #define BRIGHTNESS_CURRENT BRIGHTNESS_DIR "/brightness"
 #define BRIGHTNESS_MAX BRIGHTNESS_DIR "/max_brightness"
@@ -58,10 +50,6 @@ typedef struct state {
 	draw_t *drawable;
 } state_t;
 
-static Window create_window(state_t *state);
-static void draw(state_t *state);
-static float get_fill_percent(int br, float lower, float upper);
-
 static void write_brightness(state_t *state);
 static void brightness_up(state_t *state);
 static void brightness_down(state_t *state);
@@ -73,108 +61,7 @@ static int grab_keyboard(state_t *state);
 static void run(state_t *state);
 static void cleanup(state_t *state);
 
-Window create_window(state_t *state)
-{
-	XSetWindowAttributes wa;
-	int screen, x, y;
-	unsigned long vmask;
-
-	wa.override_redirect = True;
-	wa.background_pixmap = ParentRelative;
-	wa.event_mask = ExposureMask | KeyPressMask | VisibilityChangeMask;
-
-	screen = DefaultScreen(state->dpy);
-	vmask = CWOverrideRedirect | CWBackPixmap | CWEventMask;
-
-	x = DisplayWidth(state->dpy, screen) / 2 - (XSIZE / 2);
-	y = DisplayHeight(state->dpy, screen) * 15 / 16 - (YSIZE / 2);
-
-	return
-	XCreateWindow(state->dpy,
-		state->root,
-		x,
-		y,
-		XSIZE,
-		YSIZE,
-		0,
-		DefaultDepth(state->dpy, screen),
-		CopyFromParent,
-		DefaultVisual(state->dpy, screen),
-		vmask,
-		&wa);
-}
-
-void draw(state_t *state)
-{
-	GC context;
-	Colormap colormap;
-
-	XColor xcolor_fg1, xcolor_fg2, xcolor_bg;
-	char *color_fg1 = "#3475aa";
-	char *color_fg2 = "#909090";
-	char *color_bg = "#1a1a1a";
-
-	int i, base_x_offset, base_y_offset;
-
-	int brightness_percent = state->current_brightness * 100 / state->max_brightness;
-
-	colormap = DefaultColormap(state->dpy, 0);
-	context = XCreateGC(state->dpy, state->win, 0, 0);
-
-	XParseColor(state->dpy, colormap, color_fg1, &xcolor_fg1);
-	XAllocColor(state->dpy, colormap, &xcolor_fg1);
-
-	XParseColor(state->dpy, colormap, color_fg2, &xcolor_fg2);
-	XAllocColor(state->dpy, colormap, &xcolor_fg2);
-
-	XParseColor(state->dpy, colormap, color_bg, &xcolor_bg);
-	XAllocColor(state->dpy, colormap, &xcolor_bg);
-
-	XSetForeground(state->dpy, context, xcolor_fg2.pixel);
-	XDrawRectangle(state->dpy, state->win, context, 0, 0, XSIZE - 1, YSIZE - 1);
-	XSetForeground(state->dpy, context, xcolor_bg.pixel);
-	XFillRectangle(state->dpy, state->win, context, 1, 1, XSIZE - 2, YSIZE - 2);
-
-	XSetForeground(state->dpy, context, xcolor_fg1.pixel);
-
-	base_x_offset = 1 + PADDING;
-	base_y_offset = 1 + PADDING;
-
-	for (i = 0; i < NRECT; i++) {
-		int x_offset = base_x_offset + i * (RECT_XSIZE + PADDING);
-		int y_offset = base_y_offset;
-
-		float fill_percent = get_fill_percent(brightness_percent,
-			i * (100.0 / (float)NRECT),
-			(i + 1) * (100.0 / (float)NRECT));
-
-		XDrawRectangle(state->dpy,
-			state->win,
-			context,
-			x_offset,
-			y_offset,
-			RECT_XSIZE - 1,
-			RECT_YSIZE - 1);
-
-		XFillRectangle(state->dpy,
-			state->win,
-			context,
-			x_offset + 2,
-			y_offset + 2,
-			(int)((RECT_XSIZE - 4) * fill_percent),
-			RECT_YSIZE - 4);
-	}
-}
-
-float get_fill_percent(int brightness_percent, float lower, float upper)
-{
-	// Return a number between 0 and 1, representing the percentage of the
-	// rectangle to be filled.
-	return
-		brightness_percent >= upper ? 1.0 :
-		brightness_percent <= lower ? 0 :
-		(float)(brightness_percent - lower) / (float)(upper - lower);
-}
+static void state_init(state_t *state);
 
 void write_brightness(state_t *state)
 {
@@ -216,7 +103,6 @@ void brightness_down(state_t *state)
 
 	write_brightness(state);
 }
-
 
 void handle_kpress(state_t *state, XKeyEvent *e)
 {
@@ -294,19 +180,25 @@ void run(state_t *state)
 
 void cleanup(state_t *state)
 {
-	XDestroyWindow(state->dpy, state->win);
-	XCloseDisplay(state->dpy);
+	draw_cleanup(state->draw);
 	free(state);
 }
 
-void state_init(state_t *state) {
+void state_init(draw_attr_t da, state_t **state) {
 	FILE *fbr, *fmax;
+	state_t *new_state = malloc(sizeof(state_t));
+
+	if (new_state == NULL) {
+		fprintf(stderr, "Unable to allocate memory for state\n");
+		*state = NULL;
+		return;
+	}
 
 	fbr = fopen(BRIGHTNESS_CURRENT, "r");
 	if (fbr == NULL) {
-		fprintf(stderr, "Unable to read current brightness from %s.\n",
+		fprintf(stderr, "Unable to read current brightness from %s\n",
 			BRIGHTNESS_CURRENT);
-		goto end;
+		goto error;
 	}
 
 	fscanf(fbr, "%d", &state->current_brightness);
@@ -314,47 +206,55 @@ void state_init(state_t *state) {
 
 	fmax = fopen(BRIGHTNESS_MAX, "r");
 	if (fmax == NULL) {
-		fprintf(stderr, "Unable to read max brightness from %s.\n",
+		fprintf(stderr, "Unable to read max brightness from %s\n",
 			BRIGHTNESS_MAX);
-		goto end;
+		goto error;
 	}
 
 	fscanf(fmax, "%d", &state->max_brightness);
 	fclose(fmax);
 
-	state->drawable = malloc(sizeof(draw_t));
-	draw_init(state->drawable);
+	draw_init(da, &state->drawable);
+
+	if (state->drawable == NULL) {
+		fprintf(stderr, "Failed to allocate memory for drawable\n");
+		goto error;
+	}
+
+	*state = new_state;
+	return;
+
+error:
+	free(new_state);
+	*state = NULL;
 }
 
 
 int main(int argc, char **argv)
 {
 	unsigned int i, error;
+	draw_attr_t da;
+	state_t *state;
 
-	state_t *state = malloc(sizeof(state_t));
-	state_init(state);
+	get_attr_defaults(&da);
 
 	for (i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "-v")) {
 			printf("xbbar-"XBBAR_VERSION"\n");
-			state->error = 0;
-			goto end;
+			return 0;
 		} else {
 			fprintf(stderr, "usage: xbbar [-v]\n");
-			state->error = 1;
-			goto end;
+			return 1;
 		}
 	}
 
-	state->dpy = XOpenDisplay(NULL);
-	state->root = RootWindow(state->dpy, 0);
-	state->win = create_window(state);
+	state_init(state);
 
 	state->running = grab_keyboard(state);
 	state->error = 0;
 
-	XMapRaised(state->dpy, state->win);
-	XFlush(state->dpy);
+	XMapRaised(state->draw->dpy, state->draw->win);
+	XFlush(state->draw->dpy);
 
 	run(state);
 
