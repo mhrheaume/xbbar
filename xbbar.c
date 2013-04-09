@@ -47,7 +47,7 @@ typedef struct state {
 	int running;
 	int error;
 
-	draw_t *drawable;
+	bar_t *bar;
 } state_t;
 
 static void write_brightness(state_t *state);
@@ -61,7 +61,7 @@ static int grab_keyboard(state_t *state);
 static void run(state_t *state);
 static void cleanup(state_t *state);
 
-static void state_init(state_t *state);
+static state_t *state_init(state_t *state);
 
 void write_brightness(state_t *state)
 {
@@ -115,14 +115,14 @@ void handle_kpress(state_t *state, XKeyEvent *e)
 	case XK_K:
 	case XK_k:
 		brightness_up(state);
-		draw(state);
+		bar_draw(state->bar);
 		break;
 	case XF86XK_MonBrightnessDown:
 	case XK_Down:
 	case XK_J:
 	case XK_j:
 		brightness_down(state);
-		draw(state);
+		bar_draw(state->bar);
 		break;
 	case XK_Escape:
 		state->running = 0;
@@ -184,14 +184,13 @@ void cleanup(state_t *state)
 	free(state);
 }
 
-void state_init(draw_attr_t da, state_t **state) {
+state_t *state_init(unsigned int b_mask, bar_attr_t b_attr) {
 	FILE *fbr, *fmax;
 	state_t *new_state = malloc(sizeof(state_t));
 
 	if (new_state == NULL) {
 		fprintf(stderr, "Unable to allocate memory for state\n");
-		*state = NULL;
-		return;
+		return NULL;
 	}
 
 	fbr = fopen(BRIGHTNESS_CURRENT, "r");
@@ -214,29 +213,26 @@ void state_init(draw_attr_t da, state_t **state) {
 	fscanf(fmax, "%d", &state->max_brightness);
 	fclose(fmax);
 
-	draw_init(da, &state->drawable);
+	-state->bar = bar_init(b_mask, b_attr);
 
 	if (state->drawable == NULL) {
 		fprintf(stderr, "Failed to allocate memory for drawable\n");
 		goto error;
 	}
 
-	*state = new_state;
-	return;
+	return new_state;
 
 error:
 	free(new_state);
-	*state = NULL;
+	return NULL;
 }
 
 
 int main(int argc, char **argv)
 {
-	unsigned int i, error;
-	draw_attr_t da;
+	unsigned int i, error, b_mask = 0;
+	bar_attr_t b_attr;
 	state_t *state;
-
-	get_attr_defaults(&da);
 
 	for (i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "-v")) {
@@ -248,13 +244,10 @@ int main(int argc, char **argv)
 		}
 	}
 
-	state_init(state);
+	state = state_init(b_mask, b_attr);
 
 	state->running = grab_keyboard(state);
 	state->error = 0;
-
-	XMapRaised(state->draw->dpy, state->draw->win);
-	XFlush(state->draw->dpy);
 
 	run(state);
 

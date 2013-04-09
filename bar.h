@@ -16,43 +16,37 @@
  *  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef __DRAW_H__
-#define __DRAW_H__
+#ifndef __BAR_H__
+#define __BAR_H__
 
-typedef struct draw {
-	Display *dpy;
-	Window root;
-	Window win;
-	GC context;
+#define CB_NRECT     0x0001
+#define CB_PADDING   0x0002
+#define CB_XPOS      0x0004
+#define CB_YPOS      0x0008
+#define CB_RECT_XSZ  0x0010
+#define CB_RECT_YSZ  0x0020
+#define CB_FG1       0x0040
+#define CB_FG2       0x0080
+#define CB_BG        0x0100
 
-	int nrect;
-	int padding;
-	int rect_xsz;
-	int rect_ysz;
+typedef struct bar bar_t;
 
-	int xsz;
-	int ysz;
-
-	XColor fg1;
-	XColor fg2;
-	XColor bg;
-} draw_t;
-
-typedef struct draw_attr {
+typedef struct bar_attr {
 	int nrect;
 	int padding;
 
-	int x;
-	int y;
+	int xpos;
+	int ypos;
 	int rect_xsz;
 	int rect_ysz;
 
 	char *fg1;
 	char *fg2;
 	char *bg;
-} draw_attr_t;
+} bar_attr_t;
 
-void draw_init(draw_t *drawable);
-void draw(draw_t *drawable, int current, int max);
+bar_t *bar_init(unsigned int bar_mask, bar_attr_t bar_attr);
+void bar_draw(bar_t *drawable, int current, int max);
+void bar_cleanup(bar_t *drawable);
 
-void get_attr_defaults(draw_attr_t *attr);
+#endif // __BAR_H__
