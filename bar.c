@@ -32,6 +32,9 @@
 #define DEFAULT_FG2 "#909090"
 #define DEFAULT_BG "#1a1a1a"
 
+#define DEFAULT_UNLESS_MASKED(mask, lhs, attr) \
+	if (!(mask & MASK_ ## attr)) lhs = DEFAULT_ ## attr
+
 struct bar {
 	Display *dpy;
 	Window root;
@@ -57,6 +60,7 @@ struct bar {
 }; 
 
 static void create_window(bar_t *bar);
+static void fill_defaults(unsigned int b_mask, bar_attr_t *b_attr);
 
 __attribute__((always_inline))
 static inline int calc_xsize(rect_xsz, padding, nrect)
@@ -103,10 +107,20 @@ void create_window(bar_t *bar)
 		&wa);
 }
 
+void fill_defaults(unsigned int b_mask, bar_attr_t *b_attr)
+{
+	DEFAULT_UNLESS_MASKED(b_mask, b_attr->nrect, NRECT);
+	DEFAULT_UNLESS_MASKED(b_mask, b_attr->padding, PADDING);
+	DEFAULT_UNLESS_MASKED(b_mask, b_attr->rect_xsz, RECT_XSZ);
+	DEFAULT_UNLESS_MASKED(b_mask, b_attr->rect_ysz, RECT_YSZ);
+
+	DEFAULT_UNLESS_MASKED(b_mask, b_attr->fg1, FG1);
+	DEFAULT_UNLESS_MASKED(b_mask, b_attr->fg2, FG2);
+	DEFAULT_UNLESS_MASKED(b_mask, b_attr->bg, BG);
+}
+
 bar_t *bar_init(unsigned int b_mask, bar_attr_t b_attr)
 {
-	char *fg1, *fg2, *bg;
-
 	bar_t *bar = malloc(sizeof(bar_t));
 
 	if (bar == NULL) {
@@ -115,33 +129,25 @@ bar_t *bar_init(unsigned int b_mask, bar_attr_t b_attr)
 
 	bar->dpy = XOpenDisplay(NULL);
 	bar->root = RootWindow(bar->dpy, 0);
-
 	bar->screen = DefaultScreen(bar->dpy);
 	bar->cmap = DefaultColormap(bar->dpy, 0);
 
-	bar->nrect = b_mask & MASK_NRECT ? b_attr.nrect : DEFAULT_NRECT;
-	bar->padding = b_mask & MASK_PADDING ? b_attr.padding : DEFAULT_PADDING;
-	bar->rect_xsz = b_mask & MASK_RECT_XSZ ?  b_attr.rect_xsz : DEFAULT_RECT_XSZ;
-	bar->rect_ysz = b_mask & MASK_RECT_YSZ ?  b_attr.rect_ysz : DEFAULT_RECT_YSZ;
+	fill_defaults(b_mask, &b_attr);
+
+	bar->nrect = b_attr.nrect;
+	bar->padding = b_attr.padding;
+	bar->rect_xsz = b_attr.rect_xsz;
+	bar->rect_ysz = b_attr.rect_ysz;
+
+	XAllocNamedColor(bar->dpy, bar->cmap, b_attr.fg1, &bar->fg1, &bar->fg1);
+	XAllocNamedColor(bar->dpy, bar->cmap, b_attr.fg2, &bar->fg2, &bar->fg2);
+	XAllocNamedColor(bar->dpy, bar->cmap, b_attr.bg, &bar->bg, &bar->bg);
 
 	bar->xsz = calc_xsize(bar->rect_xsz, bar->padding, bar->nrect);
 	bar->ysz = calc_ysize(bar->rect_ysz, bar->padding);
 
-	bar->xpos = b_mask & MASK_XPOS ?
-		b_attr.xpos :
-		DisplayWidth(bar->dpy, bar->screen) / 2 - (bar->xsz / 2);
-
-	bar->ypos = b_mask & MASK_YPOS ?
-		b_attr.ypos :
-		DisplayHeight(bar->dpy, bar->screen) * 15 / 16 - (bar->ysz / 2);
-
-	fg1 = b_mask & MASK_FG1 ? b_attr.fg1 : DEFAULT_FG1;
-	fg2 = b_mask & MASK_FG2 ? b_attr.fg2 : DEFAULT_FG2;
-	bg = b_mask & MASK_BG ? b_attr.bg : DEFAULT_BG;
-
-	XAllocNamedColor(bar->dpy, bar->cmap, fg1, &bar->fg1, &bar->fg1);
-	XAllocNamedColor(bar->dpy, bar->cmap, fg2, &bar->fg2, &bar->fg2);
-	XAllocNamedColor(bar->dpy, bar->cmap, bg, &bar->bg, &bar->bg);
+	bar->xpos = DisplayWidth(bar->dpy, bar->screen) / 2 - (bar->xsz / 2);
+	bar->ypos = DisplayHeight(bar->dpy, bar->screen) * 15 / 16 - (bar->ysz / 2);
 
 	create_window(bar);
 

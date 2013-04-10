@@ -21,22 +21,17 @@
 
 #define MASK_NRECT     0x0001
 #define MASK_PADDING   0x0002
-#define MASK_XPOS      0x0004
-#define MASK_YPOS      0x0008
-#define MASK_RECT_XSZ  0x0010
-#define MASK_RECT_YSZ  0x0020
-#define MASK_FG1       0x0040
-#define MASK_FG2       0x0080
-#define MASK_BG        0x0100
+#define MASK_RECT_XSZ  0x0004
+#define MASK_RECT_YSZ  0x0008
+#define MASK_FG1       0x0010
+#define MASK_FG2       0x0020
+#define MASK_BG        0x0040
 
 typedef struct bar bar_t;
 
 typedef struct bar_attr {
 	int nrect;
 	int padding;
-
-	int xpos;
-	int ypos;
 	int rect_xsz;
 	int rect_ysz;
 
