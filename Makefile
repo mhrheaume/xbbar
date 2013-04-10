@@ -1,7 +1,7 @@
 CC = gcc
 CFLAGS = -Wall -Werror -lX11 -lm
 
-SRC = xbbar.c
+SRC = $(wildcard *.c)
 OBJS = ${SRC:.c=.o}
 EXEC = xbbar
 

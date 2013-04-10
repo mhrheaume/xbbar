@@ -18,7 +18,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
 #include <unistd.h>
 #include <string.h>
 
@@ -27,6 +26,7 @@
 #include <X11/XF86keysym.h>
 
 #include "version.h"
+#include "bar.h"
 
 #ifdef DEBUG
 #define DEBUG_PRINTF(x) printf x
@@ -61,7 +61,7 @@ static int grab_keyboard(state_t *state);
 static void run(state_t *state);
 static void cleanup(state_t *state);
 
-static state_t *state_init(state_t *state);
+static state_t *state_init(unsigned int b_mask, bar_attr_t b_attr);
 
 void write_brightness(state_t *state)
 {
@@ -115,14 +115,14 @@ void handle_kpress(state_t *state, XKeyEvent *e)
 	case XK_K:
 	case XK_k:
 		brightness_up(state);
-		bar_draw(state->bar);
+		bar_draw(state->bar, state->current_brightness, state->max_brightness);
 		break;
 	case XF86XK_MonBrightnessDown:
 	case XK_Down:
 	case XK_J:
 	case XK_j:
 		brightness_down(state);
-		bar_draw(state->bar);
+		bar_draw(state->bar, state->current_brightness, state->max_brightness);
 		break;
 	case XK_Escape:
 		state->running = 0;
@@ -135,7 +135,9 @@ void handle_event(state_t *state, XEvent ev)
 	switch (ev.type) {
 	case Expose:
 		if (ev.xexpose.count == 0) {
-			draw(state);
+			bar_draw(state->bar,
+				state->current_brightness,
+				state->max_brightness);
 		}
 		break;
 	case KeyPress:
@@ -152,8 +154,8 @@ int grab_keyboard(state_t *state)
 	unsigned int len;
 
 	for (len = 100; len; len--) {
-		int result = XGrabKeyboard(state->dpy,
-			state->root,
+		int result = XGrabKeyboard(bar_get_dpy(state->bar),
+			bar_get_root(state->bar),
 			True,
 			GrabModeAsync,
 			GrabModeAsync,
@@ -173,14 +175,14 @@ void run(state_t *state)
 {
 	XEvent ev;
 
-	while (state->running && !XNextEvent(state->dpy, &ev)) {
+	while (state->running && !XNextEvent(bar_get_dpy(state->bar), &ev)) {
 		handle_event(state, ev);
 	}
 }
 
 void cleanup(state_t *state)
 {
-	draw_cleanup(state->draw);
+	bar_cleanup(state->bar);
 	free(state);
 }
 
@@ -200,7 +202,7 @@ state_t *state_init(unsigned int b_mask, bar_attr_t b_attr) {
 		goto error;
 	}
 
-	fscanf(fbr, "%d", &state->current_brightness);
+	fscanf(fbr, "%d", &new_state->current_brightness);
 	fclose(fbr);
 
 	fmax = fopen(BRIGHTNESS_MAX, "r");
@@ -210,13 +212,13 @@ state_t *state_init(unsigned int b_mask, bar_attr_t b_attr) {
 		goto error;
 	}
 
-	fscanf(fmax, "%d", &state->max_brightness);
+	fscanf(fmax, "%d", &new_state->max_brightness);
 	fclose(fmax);
 
-	-state->bar = bar_init(b_mask, b_attr);
+	new_state->bar = bar_init(b_mask, b_attr);
 
-	if (state->drawable == NULL) {
-		fprintf(stderr, "Failed to allocate memory for drawable\n");
+	if (new_state->bar == NULL) {
+		fprintf(stderr, "Failed to allocate memory for bar\n");
 		goto error;
 	}
 
@@ -246,13 +248,17 @@ int main(int argc, char **argv)
 
 	state = state_init(b_mask, b_attr);
 
+	if (state == NULL) {
+		return 1;
+	}
+
 	state->running = grab_keyboard(state);
 	state->error = 0;
 
 	run(state);
 
-end:
 	error = state->error;
 	cleanup(state);
+
 	return error;
 }
