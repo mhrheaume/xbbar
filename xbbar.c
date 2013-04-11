@@ -254,6 +254,19 @@ int main(int argc, char **argv)
 				fprintf(stderr, "-p: invalid argument");
 				return 1;
 			}
+		} else if (!strcmp(argv[i], "-n")) {
+			if (!(++i < argc)) {
+				fprintf(stderr, "-n: missing argument");
+			}
+
+			errno = 0;
+			b_attr.nrect = (int)strtol(argv[i], NULL, 10);
+			b_mask |= MASK_NRECT;
+
+			if (errno == EINVAL || errno == ERANGE) {
+				fprintf(stderr, "-n: invalid argument");
+				return 1;
+			}
 		} else {
 			fprintf(stderr, "usage: xbbar [-v] [-p <padding>]\n");
 			return 1;
