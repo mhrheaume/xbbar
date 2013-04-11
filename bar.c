@@ -32,16 +32,15 @@
 #define DEFAULT_FG2 "#909090"
 #define DEFAULT_BG "#1a1a1a"
 
+#define BAR_PRIV(b) (bar_priv_t*)b->priv
+
 #define DEFAULT_UNLESS_MASKED(mask, lhs, attr) \
 	if (!(mask & MASK_ ## attr)) lhs = DEFAULT_ ## attr
 
-struct bar {
-	Display *dpy;
-	Window root;
+typedef struct bar_priv {
 	Window win;
-	int screen;
+
 	GC context;
-	Colormap cmap;
 
 	int nrect;
 	int padding;
@@ -57,7 +56,7 @@ struct bar {
 	XColor fg1;
 	XColor fg2;
 	XColor bg;
-}; 
+} bar_priv_t;
 
 static void create_window(bar_t *bar);
 static void fill_defaults(unsigned int b_mask, bar_attr_t *b_attr);
@@ -86,6 +85,9 @@ void create_window(bar_t *bar)
 {
 	XSetWindowAttributes wa;
 	unsigned long vmask;
+	int screen = DefaultScreen(bar->dpy);
+
+	bar_priv_t *bar_p = BAR_PRIV(bar);
 
 	wa.override_redirect = True;
 	wa.background_pixmap = ParentRelative;
@@ -93,16 +95,16 @@ void create_window(bar_t *bar)
 
 	vmask = CWOverrideRedirect | CWBackPixmap | CWEventMask;
 
-	bar->win = XCreateWindow(bar->dpy,
+	bar_p->win = XCreateWindow(bar->dpy,
 		bar->root,
-		bar->xpos,
-		bar->ypos,
-		bar->xsz,
-		bar->ysz,
+		bar_p->xpos,
+		bar_p->ypos,
+		bar_p->xsz,
+		bar_p->ysz,
 		0,
-		DefaultDepth(bar->dpy, bar->screen),
+		DefaultDepth(bar->dpy, screen),
 		CopyFromParent,
-		DefaultVisual(bar->dpy, bar->screen),
+		DefaultVisual(bar->dpy, screen),
 		vmask,
 		&wa);
 }
@@ -121,52 +123,57 @@ void fill_defaults(unsigned int b_mask, bar_attr_t *b_attr)
 
 bar_t *bar_init(unsigned int b_mask, bar_attr_t b_attr)
 {
-	bar_t *bar = malloc(sizeof(bar_t));
+	Colormap cmap;
+	int screen;
 
+	bar_t *bar;
+	bar_priv_t *bar_p;
+	
+	bar = malloc(sizeof(bar_t));
 	if (bar == NULL) {
 		return NULL;
 	}
 
+	bar->priv = malloc(sizeof(bar_priv_t));
+	if (bar->priv == NULL) {
+		free(bar);
+		return NULL;
+	}
+
+	bar_p = BAR_PRIV(bar);
+
 	bar->dpy = XOpenDisplay(NULL);
 	bar->root = RootWindow(bar->dpy, 0);
-	bar->screen = DefaultScreen(bar->dpy);
-	bar->cmap = DefaultColormap(bar->dpy, 0);
 
 	fill_defaults(b_mask, &b_attr);
 
-	bar->nrect = b_attr.nrect;
-	bar->padding = b_attr.padding;
-	bar->rect_xsz = b_attr.rect_xsz;
-	bar->rect_ysz = b_attr.rect_ysz;
+	bar_p->nrect = b_attr.nrect;
+	bar_p->padding = b_attr.padding;
+	bar_p->rect_xsz = b_attr.rect_xsz;
+	bar_p->rect_ysz = b_attr.rect_ysz;
 
-	XAllocNamedColor(bar->dpy, bar->cmap, b_attr.fg1, &bar->fg1, &bar->fg1);
-	XAllocNamedColor(bar->dpy, bar->cmap, b_attr.fg2, &bar->fg2, &bar->fg2);
-	XAllocNamedColor(bar->dpy, bar->cmap, b_attr.bg, &bar->bg, &bar->bg);
+	cmap = DefaultColormap(bar->dpy, 0);
 
-	bar->xsz = calc_xsize(bar->rect_xsz, bar->padding, bar->nrect);
-	bar->ysz = calc_ysize(bar->rect_ysz, bar->padding);
+	XAllocNamedColor(bar->dpy, cmap, b_attr.fg1, &bar_p->fg1, &bar_p->fg1);
+	XAllocNamedColor(bar->dpy, cmap, b_attr.fg2, &bar_p->fg2, &bar_p->fg2);
+	XAllocNamedColor(bar->dpy, cmap, b_attr.bg, &bar_p->bg, &bar_p->bg);
 
-	bar->xpos = DisplayWidth(bar->dpy, bar->screen) / 2 - (bar->xsz / 2);
-	bar->ypos = DisplayHeight(bar->dpy, bar->screen) * 15 / 16 - (bar->ysz / 2);
+	bar_p->xsz = calc_xsize(bar_p->rect_xsz, bar_p->padding, bar_p->nrect);
+	bar_p->ysz = calc_ysize(bar_p->rect_ysz, bar_p->padding);
+
+	screen = DefaultScreen(bar->dpy);
+
+	bar_p->xpos = DisplayWidth(bar->dpy, screen) / 2 - (bar_p->xsz / 2);
+	bar_p->ypos = DisplayHeight(bar->dpy, screen) * 15 / 16 - (bar_p->ysz / 2);
 
 	create_window(bar);
 
-	bar->context = XCreateGC(bar->dpy, bar->win, 0, 0);
+	bar_p->context = XCreateGC(bar->dpy, bar_p->win, 0, 0);
 
-	XMapRaised(bar->dpy, bar->win);
+	XMapRaised(bar->dpy, bar_p->win);
 	XFlush(bar->dpy);
 
 	return bar;
-}
-
-Display *bar_get_dpy(bar_t *bar)
-{
-	return bar->dpy;
-}
-
-Window bar_get_root(bar_t *bar)
-{
-	return bar->root;
 }
 
 void bar_draw(bar_t *bar, int current, int max)
@@ -174,59 +181,64 @@ void bar_draw(bar_t *bar, int current, int max)
 	int i, base_x_offset, base_y_offset;
 	int brightness_percent = current * 100 / max;
 
-	XSetForeground(bar->dpy, bar->context, bar->fg1.pixel);
+	bar_priv_t *bar_p = BAR_PRIV(bar);
+
+	XSetForeground(bar->dpy, bar_p->context, bar_p->fg1.pixel);
 	XDrawRectangle(bar->dpy,
-		bar->win,
-		bar->context,
+		bar_p->win,
+		bar_p->context,
 		0,
 		0,
-		bar->xsz - 1,
-		bar->ysz - 1);
+		bar_p->xsz - 1,
+		bar_p->ysz - 1);
 
-	XSetForeground(bar->dpy, bar->context, bar->bg.pixel);
+	XSetForeground(bar->dpy, bar_p->context, bar_p->bg.pixel);
 	XFillRectangle(bar->dpy,
-		bar->win,
-		bar->context,
+		bar_p->win,
+		bar_p->context,
 		1,
 		1,
-		bar->xsz - 2,
-		bar->ysz - 2);
+		bar_p->xsz - 2,
+		bar_p->ysz - 2);
 
-	XSetForeground(bar->dpy, bar->context, bar->fg1.pixel);
+	XSetForeground(bar->dpy, bar_p->context, bar_p->fg1.pixel);
 
-	base_x_offset = 1 + bar->padding;
-	base_y_offset = 1 + bar->padding;
+	base_x_offset = 1 + bar_p->padding;
+	base_y_offset = 1 + bar_p->padding;
 
-	for (i = 0; i < bar->nrect; i++) {
-		int x_offset = base_x_offset + i * (bar->rect_xsz + bar->padding);
+	for (i = 0; i < bar_p->nrect; i++) {
+		int x_offset = base_x_offset + i * (bar_p->rect_xsz + bar_p->padding);
 		int y_offset = base_y_offset;
 
 		float fill_percent = get_fill_percent(brightness_percent,
-			i * (100.0 / (float)bar->nrect),
-			(i + 1) * (100.0 / (float)bar->nrect));
+			i * (100.0 / (float)bar_p->nrect),
+			(i + 1) * (100.0 / (float)bar_p->nrect));
 
 		XDrawRectangle(bar->dpy,
-			bar->win,
-			bar->context,
+			bar_p->win,
+			bar_p->context,
 			x_offset,
 			y_offset,
-			bar->rect_xsz - 1,
-			bar->rect_ysz - 1);
+			bar_p->rect_xsz - 1,
+			bar_p->rect_ysz - 1);
 
 		XFillRectangle(bar->dpy,
-			bar->win,
-			bar->context,
+			bar_p->win,
+			bar_p->context,
 			x_offset + 2,
 			y_offset + 2,
-			(int)((bar->rect_xsz - 4) * fill_percent),
-			bar->rect_ysz - 4);
+			(int)((bar_p->rect_xsz - 4) * fill_percent),
+			bar_p->rect_ysz - 4);
 	}
 }
 
 void bar_cleanup(bar_t *bar)
 {
-	XDestroyWindow(bar->dpy, bar->win);
-	XCloseDisplay(bar->dpy);
+	bar_priv_t *bar_p = BAR_PRIV(bar);
 
+	XDestroyWindow(bar->dpy, bar_p->win);
+	free(bar_p);
+
+	XCloseDisplay(bar->dpy);
 	free(bar);
 }

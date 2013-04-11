@@ -154,8 +154,8 @@ int grab_keyboard(state_t *state)
 	unsigned int len;
 
 	for (len = 100; len; len--) {
-		int result = XGrabKeyboard(bar_get_dpy(state->bar),
-			bar_get_root(state->bar),
+		int result = XGrabKeyboard(state->bar->dpy,
+			state->bar->root,
 			True,
 			GrabModeAsync,
 			GrabModeAsync,
@@ -175,7 +175,7 @@ void run(state_t *state)
 {
 	XEvent ev;
 
-	while (state->running && !XNextEvent(bar_get_dpy(state->bar), &ev)) {
+	while (state->running && !XNextEvent(state->bar->dpy, &ev)) {
 		handle_event(state, ev);
 	}
 }

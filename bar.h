@@ -27,7 +27,12 @@
 #define MASK_FG2       0x0020
 #define MASK_BG        0x0040
 
-typedef struct bar bar_t;
+typedef struct bar {
+	Display *dpy;
+	Window root;
+
+	void *priv;
+} bar_t;
 
 typedef struct bar_attr {
 	int nrect;
@@ -41,9 +46,6 @@ typedef struct bar_attr {
 } bar_attr_t;
 
 bar_t *bar_init(unsigned int bar_mask, bar_attr_t bar_attr);
-
-Display *bar_get_dpy(bar_t *bar);
-Window bar_get_root(bar_t *bar);
 
 void bar_draw(bar_t *bar, int current, int max);
 void bar_cleanup(bar_t *bar);
