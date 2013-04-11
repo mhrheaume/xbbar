@@ -284,6 +284,32 @@ int main(int argc, char **argv)
 				fprintf(stderr, "-n: invalid argument\n");
 				return 1;
 			}
+		} else if (!strcmp(argv[i], "-xs")) {
+			if (!(++i < argc)) {
+				fprintf(stderr, "-xs: missing argument\n");
+				return 1;
+			}
+
+			b_attr.rect_xsz = validate_int(argv[i]);
+			b_mask |= MASK_RECT_XSZ;
+
+			if (b_attr.rect_xsz < 0) {
+				fprintf(stderr, "-n: invalid argument\n");
+				return 1;
+			}
+		} else if (!strcmp(argv[i], "-ys")) {
+			if (!(++i < argc)) {
+				fprintf(stderr, "-ys: missing argument\n");
+				return 1;
+			}
+
+			b_attr.rect_ysz = validate_int(argv[i]);
+			b_mask |= MASK_RECT_YSZ;
+
+			if (b_attr.rect_ysz < 0) {
+				fprintf(stderr, "-ysz: invalid argument\n");
+				return 1;
+			}
 		} else {
 			fprintf(stderr, "usage: xbbar [-v] [-p <padding>]\n");
 			return 1;
