@@ -21,3 +21,4 @@ Running
 - Use XK_MonBrightnessUp, Up, or K to increase brightness.
 - Use XK_MonBrightnessDown, Down, or J to decrease brightness.
 - Exit with ESC.
+- Run 'xbbar -h' to see options.

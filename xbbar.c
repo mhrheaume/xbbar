@@ -311,7 +311,8 @@ int main(int argc, char **argv)
 				return 1;
 			}
 		} else {
-			fprintf(stderr, "usage: xbbar [-v] [-p <padding>]\n");
+			fprintf(stderr, "usage: xbbar [-v] [-p <padding>] [-n <nrect>]\n"
+				            "             [-xs <rect_xsz>] [-ys <rect_ysz>]\n");
 			return 1;
 		}
 	}
