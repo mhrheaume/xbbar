@@ -51,6 +51,8 @@ typedef struct state {
 	bar_t *bar;
 } state_t;
 
+static int validate_int(char *str);
+
 static void write_brightness(state_t *state);
 static void brightness_up(state_t *state);
 static void brightness_down(state_t *state);
@@ -63,6 +65,22 @@ static void run(state_t *state);
 static void cleanup(state_t *state);
 
 static state_t *state_init(unsigned int b_mask, bar_attr_t b_attr);
+
+// Returns the integer if >= 0, -1 otherwise
+int validate_int(char *str)
+{
+	int ret;
+
+	errno = 0;
+	ret = (int)strtol(str, NULL, 10);
+
+	if (errno == EINVAL || errno == ERANGE) {
+		return -1;
+	}
+
+	return ret < 0 ? -1 : ret;
+}
+
 
 void write_brightness(state_t *state)
 {
@@ -230,7 +248,6 @@ error:
 	return NULL;
 }
 
-
 int main(int argc, char **argv)
 {
 	unsigned int i, error, b_mask = 0;
@@ -243,28 +260,28 @@ int main(int argc, char **argv)
 			return 0;
 		} else if (!strcmp(argv[i], "-p")) {
 			if (!(++i < argc)) {
-				fprintf(stderr, "-p: missing argument");
+				fprintf(stderr, "-p: missing argument\n");
+				return 1;
 			}
 
-			errno = 0;
-			b_attr.padding = (int)strtol(argv[i], NULL, 10);
+			b_attr.padding = validate_int(argv[i]);
 			b_mask |= MASK_PADDING;
 
-			if (errno == EINVAL || errno == ERANGE) {
-				fprintf(stderr, "-p: invalid argument");
+			if (b_attr.padding < 0) {
+				fprintf(stderr, "-p: invalid argument\n");
 				return 1;
 			}
 		} else if (!strcmp(argv[i], "-n")) {
 			if (!(++i < argc)) {
-				fprintf(stderr, "-n: missing argument");
+				fprintf(stderr, "-n: missing argument\n");
+				return 1;
 			}
 
-			errno = 0;
-			b_attr.nrect = (int)strtol(argv[i], NULL, 10);
+			b_attr.nrect = validate_int(argv[i]);
 			b_mask |= MASK_NRECT;
 
-			if (errno == EINVAL || errno == ERANGE) {
-				fprintf(stderr, "-n: invalid argument");
+			if (b_attr.nrect < 0) {
+				fprintf(stderr, "-n: invalid argument\n");
 				return 1;
 			}
 		} else {
