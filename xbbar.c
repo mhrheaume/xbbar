@@ -16,10 +16,11 @@
  *  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
@@ -240,8 +241,21 @@ int main(int argc, char **argv)
 		if (!strcmp(argv[i], "-v")) {
 			printf("xbbar-"XBBAR_VERSION"\n");
 			return 0;
+		} else if (!strcmp(argv[i], "-p")) {
+			if (!(++i < argc)) {
+				fprintf(stderr, "-p: missing argument");
+			}
+
+			errno = 0;
+			b_attr.padding = (int)strtol(argv[i], NULL, 10);
+			b_mask |= MASK_PADDING;
+
+			if (errno == EINVAL || errno == ERANGE) {
+				fprintf(stderr, "-p: invalid argument");
+				return 1;
+			}
 		} else {
-			fprintf(stderr, "usage: xbbar [-v]\n");
+			fprintf(stderr, "usage: xbbar [-v] [-p <padding>]\n");
 			return 1;
 		}
 	}
