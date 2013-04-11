@@ -35,6 +35,8 @@
 #define DEBUG_PRINTF(x) do {} while (0)
 #endif
 
+#define EPRINTF(...) fprintf(stderr, __VA_ARGS__)
+
 #define BRIGHTNESS_DIR "/sys/class/backlight/acpi_video0"
 #define BRIGHTNESS_CURRENT BRIGHTNESS_DIR "/brightness"
 #define BRIGHTNESS_MAX BRIGHTNESS_DIR "/max_brightness"
@@ -52,6 +54,7 @@ typedef struct state {
 } state_t;
 
 static int validate_int(char *str);
+static void usage();
 
 static void write_brightness(state_t *state);
 static void brightness_up(state_t *state);
@@ -65,6 +68,13 @@ static void run(state_t *state);
 static void cleanup(state_t *state);
 
 static state_t *state_init(unsigned int b_mask, bar_attr_t b_attr);
+
+void usage()
+{
+	EPRINTF(
+		"usage: xbbar [-v] [-h] [-p <padding>] [-n <nrect>] [-xs <rect_xsz>]\n"
+		"             [-ys <rect_ysz>]\n");
+}
 
 // Returns the integer if >= 0, -1 otherwise
 int validate_int(char *str)
@@ -86,8 +96,7 @@ void write_brightness(state_t *state)
 {
 	FILE *fbr = fopen(BRIGHTNESS_DIR "/brightness", "w");
 	if (fbr == NULL) {
-		fprintf(stderr, "Unable to write current brightness to %s.\n",
-			BRIGHTNESS_MAX);
+		EPRINTF("Unable to write current brightness to %s.\n", BRIGHTNESS_MAX);
 
 		state->running = 0;
 		state->error = 1;
@@ -210,13 +219,13 @@ state_t *state_init(unsigned int b_mask, bar_attr_t b_attr) {
 	state_t *new_state = malloc(sizeof(state_t));
 
 	if (new_state == NULL) {
-		fprintf(stderr, "Unable to allocate memory for state\n");
+		EPRINTF("Unable to allocate memory for state\n");
 		return NULL;
 	}
 
 	fbr = fopen(BRIGHTNESS_CURRENT, "r");
 	if (fbr == NULL) {
-		fprintf(stderr, "Unable to read current brightness from %s\n",
+		EPRINTF("Unable to read current brightness from %s\n",
 			BRIGHTNESS_CURRENT);
 		goto error;
 	}
@@ -226,7 +235,7 @@ state_t *state_init(unsigned int b_mask, bar_attr_t b_attr) {
 
 	fmax = fopen(BRIGHTNESS_MAX, "r");
 	if (fmax == NULL) {
-		fprintf(stderr, "Unable to read max brightness from %s\n",
+		EPRINTF("Unable to read max brightness from %s\n",
 			BRIGHTNESS_MAX);
 		goto error;
 	}
@@ -237,7 +246,7 @@ state_t *state_init(unsigned int b_mask, bar_attr_t b_attr) {
 	new_state->bar = bar_init(b_mask, b_attr);
 
 	if (new_state->bar == NULL) {
-		fprintf(stderr, "Failed to allocate memory for bar\n");
+		EPRINTF("Failed to allocate memory for bar\n");
 		goto error;
 	}
 
@@ -260,7 +269,7 @@ int main(int argc, char **argv)
 			return 0;
 		} else if (!strcmp(argv[i], "-p")) {
 			if (!(++i < argc)) {
-				fprintf(stderr, "-p: missing argument\n");
+				EPRINTF("-p: missing argument\n");
 				return 1;
 			}
 
@@ -268,12 +277,12 @@ int main(int argc, char **argv)
 			b_mask |= MASK_PADDING;
 
 			if (b_attr.padding < 0) {
-				fprintf(stderr, "-p: invalid argument\n");
+				EPRINTF("-p: invalid argument\n");
 				return 1;
 			}
 		} else if (!strcmp(argv[i], "-n")) {
 			if (!(++i < argc)) {
-				fprintf(stderr, "-n: missing argument\n");
+				EPRINTF("-n: missing argument\n");
 				return 1;
 			}
 
@@ -281,12 +290,12 @@ int main(int argc, char **argv)
 			b_mask |= MASK_NRECT;
 
 			if (b_attr.nrect < 0) {
-				fprintf(stderr, "-n: invalid argument\n");
+				EPRINTF("-n: invalid argument\n");
 				return 1;
 			}
 		} else if (!strcmp(argv[i], "-xs")) {
 			if (!(++i < argc)) {
-				fprintf(stderr, "-xs: missing argument\n");
+				EPRINTF("-xs: missing argument\n");
 				return 1;
 			}
 
@@ -294,12 +303,12 @@ int main(int argc, char **argv)
 			b_mask |= MASK_RECT_XSZ;
 
 			if (b_attr.rect_xsz < 0) {
-				fprintf(stderr, "-n: invalid argument\n");
+				EPRINTF("-n: invalid argument\n");
 				return 1;
 			}
 		} else if (!strcmp(argv[i], "-ys")) {
 			if (!(++i < argc)) {
-				fprintf(stderr, "-ys: missing argument\n");
+				EPRINTF("-ys: missing argument\n");
 				return 1;
 			}
 
@@ -307,12 +316,11 @@ int main(int argc, char **argv)
 			b_mask |= MASK_RECT_YSZ;
 
 			if (b_attr.rect_ysz < 0) {
-				fprintf(stderr, "-ysz: invalid argument\n");
+				EPRINTF("-ysz: invalid argument\n");
 				return 1;
 			}
 		} else {
-			fprintf(stderr, "usage: xbbar [-v] [-p <padding>] [-n <nrect>]\n"
-				            "             [-xs <rect_xsz>] [-ys <rect_ysz>]\n");
+			usage();
 			return 1;
 		}
 	}
