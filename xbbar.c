@@ -53,8 +53,12 @@ typedef struct state {
 	bar_t *bar;
 } state_t;
 
-static int validate_int(char *str);
 static void usage();
+static int parse_positive_int(char *str);
+static int parse_args(int argc,
+	char **argv,
+	bar_attr_t *b_attr,
+	unsigned int *b_mask);
 
 static void write_brightness(state_t *state);
 static void brightness_up(state_t *state);
@@ -77,7 +81,7 @@ void usage()
 }
 
 // Returns the integer if >= 0, -1 otherwise
-int validate_int(char *str)
+int parse_positive_int(char *str)
 {
 	int ret;
 
@@ -91,6 +95,74 @@ int validate_int(char *str)
 	return ret < 0 ? -1 : ret;
 }
 
+int parse_args(int argc, char **argv, bar_attr_t *b_attr, unsigned int *b_mask)
+{
+	unsigned int i;
+
+	for (i = 1; i < argc; i++) {
+		if (!strcmp(argv[i], "-v")) {
+			printf("xbbar-"XBBAR_VERSION"\n");
+			return 0;
+		} else if (!strcmp(argv[i], "-p")) {
+			if (!(++i < argc)) {
+				EPRINTF("-p: missing argument\n");
+				return 0;
+			}
+
+			b_attr->padding = parse_positive_int(argv[i]);
+			*b_mask |= MASK_PADDING;
+
+			if (b_attr->padding < 0) {
+				EPRINTF("-p: invalid argument\n");
+				return 0;
+			}
+		} else if (!strcmp(argv[i], "-n")) {
+			if (!(++i < argc)) {
+				EPRINTF("-n: missing argument\n");
+				return 0;
+			}
+
+			b_attr->nrect = parse_positive_int(argv[i]);
+			*b_mask |= MASK_NRECT;
+
+			if (b_attr->nrect < 0) {
+				EPRINTF("-n: invalid argument\n");
+				return 0;
+			}
+		} else if (!strcmp(argv[i], "-xs")) {
+			if (!(++i < argc)) {
+				EPRINTF("-xs: missing argument\n");
+				return 0;
+			}
+
+			b_attr->rect_xsz = parse_positive_int(argv[i]);
+			*b_mask |= MASK_RECT_XSZ;
+
+			if (b_attr->rect_xsz < 0) {
+				EPRINTF("-xs: invalid argument\n");
+				return 0;
+			}
+		} else if (!strcmp(argv[i], "-ys")) {
+			if (!(++i < argc)) {
+				EPRINTF("-ys: missing argument\n");
+				return 0;
+			}
+
+			b_attr->rect_ysz = parse_positive_int(argv[i]);
+			*b_mask |= MASK_RECT_YSZ;
+
+			if (b_attr->rect_ysz < 0) {
+				EPRINTF("-ys: invalid argument\n");
+				return 0;
+			}
+		} else {
+			usage();
+			return 0;
+		}
+	}
+
+	return 1;
+}
 
 void write_brightness(state_t *state)
 {
@@ -259,70 +331,12 @@ error:
 
 int main(int argc, char **argv)
 {
-	unsigned int i, error, b_mask = 0;
+	unsigned int error, b_mask = 0;
 	bar_attr_t b_attr;
 	state_t *state;
 
-	for (i = 1; i < argc; i++) {
-		if (!strcmp(argv[i], "-v")) {
-			printf("xbbar-"XBBAR_VERSION"\n");
-			return 0;
-		} else if (!strcmp(argv[i], "-p")) {
-			if (!(++i < argc)) {
-				EPRINTF("-p: missing argument\n");
-				return 1;
-			}
-
-			b_attr.padding = validate_int(argv[i]);
-			b_mask |= MASK_PADDING;
-
-			if (b_attr.padding < 0) {
-				EPRINTF("-p: invalid argument\n");
-				return 1;
-			}
-		} else if (!strcmp(argv[i], "-n")) {
-			if (!(++i < argc)) {
-				EPRINTF("-n: missing argument\n");
-				return 1;
-			}
-
-			b_attr.nrect = validate_int(argv[i]);
-			b_mask |= MASK_NRECT;
-
-			if (b_attr.nrect < 0) {
-				EPRINTF("-n: invalid argument\n");
-				return 1;
-			}
-		} else if (!strcmp(argv[i], "-xs")) {
-			if (!(++i < argc)) {
-				EPRINTF("-xs: missing argument\n");
-				return 1;
-			}
-
-			b_attr.rect_xsz = validate_int(argv[i]);
-			b_mask |= MASK_RECT_XSZ;
-
-			if (b_attr.rect_xsz < 0) {
-				EPRINTF("-n: invalid argument\n");
-				return 1;
-			}
-		} else if (!strcmp(argv[i], "-ys")) {
-			if (!(++i < argc)) {
-				EPRINTF("-ys: missing argument\n");
-				return 1;
-			}
-
-			b_attr.rect_ysz = validate_int(argv[i]);
-			b_mask |= MASK_RECT_YSZ;
-
-			if (b_attr.rect_ysz < 0) {
-				EPRINTF("-ysz: invalid argument\n");
-				return 1;
-			}
-		} else {
-			usage();
-			return 1;
-		}
+	if (!parse_args(argc, argv, &b_attr, &b_mask)) {
+		return 1;
 	}
 
 	state = state_init(b_mask, b_attr);
