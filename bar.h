@@ -19,6 +19,16 @@
 #ifndef __BAR_H__
 #define __BAR_H__
 
+#define BAR_STATUS_SUCCESS      0
+#define BAR_STATUS_BAD_NRECT    1
+#define BAR_STATUS_BAD_PADDING  2
+#define BAR_STATUS_BAD_XSZ      3
+#define BAR_STATUS_BAD_YSZ      4
+#define BAR_STATUS_BAD_FG1      5
+#define BAR_STATUS_BAD_FG2      6
+#define BAR_STATUS_BAD_BG       7
+#define BAR_STATUS_NOMEM        8
+
 #define MASK_NRECT     0x0001
 #define MASK_PADDING   0x0002
 #define MASK_RECT_XSZ  0x0004
@@ -45,9 +55,11 @@ typedef struct bar_attr {
 	char *bg;
 } bar_attr_t;
 
-bar_t *bar_init(unsigned int bar_mask, bar_attr_t bar_attr);
+int bar_init(unsigned int b_mask, bar_attr_t b_attr, bar_t **bar_out);
 
 void bar_draw(bar_t *bar, int current, int max);
 void bar_cleanup(bar_t *bar);
+
+char *bar_status_tostring(int status);
 
 #endif // __BAR_H__

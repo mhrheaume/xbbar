@@ -286,8 +286,10 @@ void cleanup(state_t *state)
 	free(state);
 }
 
-state_t *state_init(unsigned int b_mask, bar_attr_t b_attr) {
+state_t *state_init(unsigned int b_mask, bar_attr_t b_attr)
+{
 	FILE *fbr, *fmax;
+	int status;
 	state_t *new_state = malloc(sizeof(state_t));
 
 	if (new_state == NULL) {
@@ -315,10 +317,10 @@ state_t *state_init(unsigned int b_mask, bar_attr_t b_attr) {
 	fscanf(fmax, "%d", &new_state->max_brightness);
 	fclose(fmax);
 
-	new_state->bar = bar_init(b_mask, b_attr);
+	status = bar_init(b_mask, b_attr, &new_state->bar); 
 
-	if (new_state->bar == NULL) {
-		EPRINTF("Failed to allocate memory for bar\n");
+	if (status != BAR_STATUS_SUCCESS) {
+		EPRINTF("Error initializing bar: %s\n", bar_status_tostring(status));
 		goto error;
 	}
 

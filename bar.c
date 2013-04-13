@@ -121,7 +121,7 @@ void fill_defaults(unsigned int b_mask, bar_attr_t *b_attr)
 	DEFAULT_UNLESS_MASKED(b_mask, b_attr->bg, BG);
 }
 
-bar_t *bar_init(unsigned int b_mask, bar_attr_t b_attr)
+int bar_init(unsigned int b_mask, bar_attr_t b_attr, bar_t **bar_out)
 {
 	Colormap cmap;
 	int screen;
@@ -131,13 +131,13 @@ bar_t *bar_init(unsigned int b_mask, bar_attr_t b_attr)
 	
 	bar = malloc(sizeof(bar_t));
 	if (bar == NULL) {
-		return NULL;
+		return BAR_STATUS_NOMEM;
 	}
 
 	bar->priv = malloc(sizeof(bar_priv_t));
 	if (bar->priv == NULL) {
 		free(bar);
-		return NULL;
+		return BAR_STATUS_NOMEM;
 	}
 
 	bar_p = BAR_PRIV(bar);
@@ -173,7 +173,8 @@ bar_t *bar_init(unsigned int b_mask, bar_attr_t b_attr)
 	XMapRaised(bar->dpy, bar_p->win);
 	XFlush(bar->dpy);
 
-	return bar;
+	*bar_out = bar;
+	return BAR_STATUS_SUCCESS;
 }
 
 void bar_draw(bar_t *bar, int current, int max)
@@ -242,3 +243,44 @@ void bar_cleanup(bar_t *bar)
 	XCloseDisplay(bar->dpy);
 	free(bar);
 }
+
+char *bar_status_tostring(int status)
+{
+	char *str;
+
+	switch (status) {
+	case BAR_STATUS_SUCCESS:
+		str = "success";
+		break;
+	case BAR_STATUS_BAD_NRECT:
+		str = "bad number of rectangles";
+		break;
+	case BAR_STATUS_BAD_PADDING:
+		str = "bad padding number";
+		break;
+	case BAR_STATUS_BAD_XSZ:
+		str = "bad rectangle x size";
+		break;
+	case BAR_STATUS_BAD_YSZ:
+		str = "bad rectangle y size";
+		break;
+	case BAR_STATUS_BAD_FG1:
+		str = "bad primary foreground color";
+		break;
+	case BAR_STATUS_BAD_FG2:
+		str = "bad secondary foreground color";
+		break;
+	case BAR_STATUS_BAD_BG:
+		str = "bad background color";
+		break;
+	case BAR_STATUS_NOMEM:
+		str = "out of memory";
+		break;
+	default:
+		str = "unknown status";
+		break;
+	}
+
+	return str;
+}
+
