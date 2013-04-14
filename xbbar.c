@@ -43,35 +43,35 @@
 
 #define BRIGHTNESS_STEP 1
 
-typedef struct state {
+struct state {
 	int current_brightness;
 	int max_brightness;
 
 	int running;
 	int error;
 
-	bar_t *bar;
-} state_t;
+	struct bar *bar;
+};
 
 static void usage();
 static int parse_positive_int(char *str);
 static int parse_args(int argc,
 	char **argv,
-	bar_attr_t *b_attr,
+	struct bar_attr *b_attr,
 	unsigned int *b_mask);
 
-static void write_brightness(state_t *state);
-static void brightness_up(state_t *state);
-static void brightness_down(state_t *state);
+static void write_brightness(struct state *state);
+static void brightness_up(struct state *state);
+static void brightness_down(struct state *state);
 
-static void handle_kpress(state_t *state, XKeyEvent *e);
-static void handle_event(state_t *state, XEvent ev);
-static int grab_keyboard(state_t *state);
+static void handle_kpress(struct state *state, XKeyEvent *e);
+static void handle_event(struct state *state, XEvent ev);
+static int grab_keyboard(struct state *state);
 
-static void run(state_t *state);
-static void cleanup(state_t *state);
+static void run(struct state *state);
+static void cleanup(struct state *state);
 
-static state_t *state_init(unsigned int b_mask, bar_attr_t b_attr);
+static struct state *state_init(unsigned int b_mask, struct bar_attr *b_attr);
 
 void usage()
 {
@@ -95,7 +95,7 @@ int parse_positive_int(char *str)
 	return ret < 0 ? -1 : ret;
 }
 
-int parse_args(int argc, char **argv, bar_attr_t *b_attr, unsigned int *b_mask)
+int parse_args(int argc, char **argv, struct bar_attr *b_attr, unsigned int *b_mask)
 {
 	unsigned int i;
 
@@ -164,7 +164,7 @@ int parse_args(int argc, char **argv, bar_attr_t *b_attr, unsigned int *b_mask)
 	return 1;
 }
 
-void write_brightness(state_t *state)
+void write_brightness(struct state *state)
 {
 	FILE *fbr = fopen(BRIGHTNESS_DIR "/brightness", "w");
 	if (fbr == NULL) {
@@ -184,7 +184,7 @@ void write_brightness(state_t *state)
 	fclose(fbr);
 }
 
-void brightness_up(state_t *state)
+void brightness_up(struct state *state)
 {
 	state->current_brightness += BRIGHTNESS_STEP;
 	if (state->current_brightness > state->max_brightness) {
@@ -194,7 +194,7 @@ void brightness_up(state_t *state)
 	write_brightness(state);
 }
 
-void brightness_down(state_t *state)
+void brightness_down(struct state *state)
 {
 	state->current_brightness -= BRIGHTNESS_STEP;
 	if (state->current_brightness < 0) {
@@ -204,7 +204,7 @@ void brightness_down(state_t *state)
 	write_brightness(state);
 }
 
-void handle_kpress(state_t *state, XKeyEvent *e)
+void handle_kpress(struct state *state, XKeyEvent *e)
 {
 	KeySym sym;
 
@@ -230,7 +230,7 @@ void handle_kpress(state_t *state, XKeyEvent *e)
 	}
 }
 
-void handle_event(state_t *state, XEvent ev)
+void handle_event(struct state *state, XEvent ev)
 {
 	switch (ev.type) {
 	case Expose:
@@ -249,7 +249,7 @@ void handle_event(state_t *state, XEvent ev)
 	}
 }
 
-int grab_keyboard(state_t *state)
+int grab_keyboard(struct state *state)
 {
 	unsigned int len;
 
@@ -271,7 +271,7 @@ int grab_keyboard(state_t *state)
 	return len > 0;
 }
 
-void run(state_t *state)
+void run(struct state *state)
 {
 	XEvent ev;
 
@@ -280,17 +280,17 @@ void run(state_t *state)
 	}
 }
 
-void cleanup(state_t *state)
+void cleanup(struct state *state)
 {
 	bar_cleanup(state->bar);
 	free(state);
 }
 
-state_t *state_init(unsigned int b_mask, bar_attr_t b_attr)
+struct state *state_init(unsigned int b_mask, struct bar_attr *b_attr)
 {
 	FILE *fbr, *fmax;
 	int status;
-	state_t *new_state = malloc(sizeof(state_t));
+	struct state *new_state = malloc(sizeof(struct state));
 
 	if (new_state == NULL) {
 		EPRINTF("Unable to allocate memory for state\n");
@@ -334,14 +334,14 @@ error:
 int main(int argc, char **argv)
 {
 	unsigned int error, b_mask = 0;
-	bar_attr_t b_attr;
-	state_t *state;
+	struct bar_attr b_attr;
+	struct state *state;
 
 	if (!parse_args(argc, argv, &b_attr, &b_mask)) {
 		return 1;
 	}
 
-	state = state_init(b_mask, b_attr);
+	state = state_init(b_mask, &b_attr);
 
 	if (state == NULL) {
 		return 1;

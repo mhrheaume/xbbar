@@ -32,12 +32,12 @@
 #define DEFAULT_FG2 "#909090"
 #define DEFAULT_BG "#1a1a1a"
 
-#define BAR_PRIV(b) (bar_priv_t*)b->priv
+#define BAR_PRIV(b) (struct bar_priv*)b->priv
 
 #define DEFAULT_UNLESS_MASKED(mask, lhs, attr) \
 	if (!(mask & MASK_ ## attr)) lhs = DEFAULT_ ## attr
 
-typedef struct bar_priv {
+struct bar_priv {
 	Window win;
 
 	GC context;
@@ -56,11 +56,11 @@ typedef struct bar_priv {
 	XColor fg1;
 	XColor fg2;
 	XColor bg;
-} bar_priv_t;
+};
 
-static void fill_defaults(unsigned int b_mask, bar_attr_t *b_attr);
-static void create_window(bar_t *bar);
-static int alloc_colors(bar_t *bar, bar_attr_t b_attr);
+static void fill_defaults(unsigned int b_mask, struct bar_attr *b_attr);
+static void create_window(struct bar *bar);
+static int alloc_colors(struct bar *bar, struct bar_attr *b_attr);
 
 __attribute__((always_inline))
 static inline int calc_xsize(rect_xsz, padding, nrect)
@@ -74,7 +74,8 @@ static inline int calc_ysize(rect_ysz, padding)
 	return rect_ysz + 2 * padding + 2;
 }
 
-static inline float get_fill_percent(int brightness_percent, float lower, float upper)
+static inline
+float get_fill_percent(int brightness_percent, float lower, float upper)
 {
 	return
 		brightness_percent >= upper ? 1.0 :
@@ -82,13 +83,13 @@ static inline float get_fill_percent(int brightness_percent, float lower, float 
 		(float)(brightness_percent - lower) / (float)(upper - lower);
 }
 
-void create_window(bar_t *bar)
+void create_window(struct bar *bar)
 {
 	XSetWindowAttributes wa;
 	unsigned long vmask;
 	int screen = DefaultScreen(bar->dpy);
 
-	bar_priv_t *bar_p = BAR_PRIV(bar);
+	struct bar_priv *bar_p = BAR_PRIV(bar);
 
 	wa.override_redirect = True;
 	wa.background_pixmap = ParentRelative;
@@ -110,7 +111,7 @@ void create_window(bar_t *bar)
 		&wa);
 }
 
-void fill_defaults(unsigned int b_mask, bar_attr_t *b_attr)
+void fill_defaults(unsigned int b_mask, struct bar_attr *b_attr)
 {
 	DEFAULT_UNLESS_MASKED(b_mask, b_attr->nrect, NRECT);
 	DEFAULT_UNLESS_MASKED(b_mask, b_attr->padding, PADDING);
@@ -122,15 +123,15 @@ void fill_defaults(unsigned int b_mask, bar_attr_t *b_attr)
 	DEFAULT_UNLESS_MASKED(b_mask, b_attr->bg, BG);
 }
 
-int alloc_colors(bar_t *bar, bar_attr_t b_attr)
+int alloc_colors(struct bar *bar, struct bar_attr *b_attr)
 {
 	Colormap cmap = DefaultColormap(bar->dpy, 0);
-	bar_priv_t *bar_p = BAR_PRIV(bar);
+	struct bar_priv *bar_p = BAR_PRIV(bar);
 	int status;
 
 	status = XAllocNamedColor(bar->dpy,
 		cmap,
-		b_attr.fg1,
+		b_attr->fg1,
 		&bar_p->fg1,
 		&bar_p->fg1);
 
@@ -140,7 +141,7 @@ int alloc_colors(bar_t *bar, bar_attr_t b_attr)
 
 	status = XAllocNamedColor(bar->dpy,
 		cmap,
-		b_attr.fg2,
+		b_attr->fg2,
 		&bar_p->fg2,
 		&bar_p->fg2);
 
@@ -150,7 +151,7 @@ int alloc_colors(bar_t *bar, bar_attr_t b_attr)
 
 	status = XAllocNamedColor(bar->dpy,
 		cmap,
-		b_attr.bg,
+		b_attr->bg,
 		&bar_p->bg,
 		&bar_p->bg);
 
@@ -161,19 +162,22 @@ int alloc_colors(bar_t *bar, bar_attr_t b_attr)
 	return BAR_STATUS_SUCCESS;
 }
 
-int bar_init(unsigned int b_mask, bar_attr_t b_attr, bar_t **bar_out)
+int bar_init(unsigned int b_mask, struct bar_attr *b_attr, struct bar **bar_out)
 {
 	int screen, status;
 
-	bar_t *bar;
-	bar_priv_t *bar_p;
-	
-	bar = malloc(sizeof(bar_t));
+	struct bar *bar;
+	struct bar_priv *bar_p;
+
+	// Fill in any missing attributes with the default values
+	fill_defaults(b_mask, b_attr);
+
+	bar = malloc(sizeof(struct bar));
 	if (bar == NULL) {
 		return BAR_STATUS_NOMEM;
 	}
 
-	bar->priv = malloc(sizeof(bar_priv_t));
+	bar->priv = malloc(sizeof(struct bar_priv));
 	if (bar->priv == NULL) {
 		free(bar);
 		return BAR_STATUS_NOMEM;
@@ -184,12 +188,10 @@ int bar_init(unsigned int b_mask, bar_attr_t b_attr, bar_t **bar_out)
 	bar->dpy = XOpenDisplay(NULL);
 	bar->root = RootWindow(bar->dpy, 0);
 
-	fill_defaults(b_mask, &b_attr);
-
-	bar_p->nrect = b_attr.nrect;
-	bar_p->padding = b_attr.padding;
-	bar_p->rect_xsz = b_attr.rect_xsz;
-	bar_p->rect_ysz = b_attr.rect_ysz;
+	bar_p->nrect = b_attr->nrect;
+	bar_p->padding = b_attr->padding;
+	bar_p->rect_xsz = b_attr->rect_xsz;
+	bar_p->rect_ysz = b_attr->rect_ysz;
 
 	bar_p->xsz = calc_xsize(bar_p->rect_xsz, bar_p->padding, bar_p->nrect);
 	bar_p->ysz = calc_ysize(bar_p->rect_ysz, bar_p->padding);
@@ -217,12 +219,12 @@ int bar_init(unsigned int b_mask, bar_attr_t b_attr, bar_t **bar_out)
 	return BAR_STATUS_SUCCESS;
 }
 
-void bar_draw(bar_t *bar, int current, int max)
+void bar_draw(struct bar *bar, int current, int max)
 {
 	int i, base_x_offset, base_y_offset;
 	int brightness_percent = current * 100 / max;
 
-	bar_priv_t *bar_p = BAR_PRIV(bar);
+	struct bar_priv *bar_p = BAR_PRIV(bar);
 
 	XSetForeground(bar->dpy, bar_p->context, bar_p->fg1.pixel);
 	XDrawRectangle(bar->dpy,
@@ -273,9 +275,9 @@ void bar_draw(bar_t *bar, int current, int max)
 	}
 }
 
-void bar_cleanup(bar_t *bar)
+void bar_cleanup(struct bar *bar)
 {
-	bar_priv_t *bar_p = BAR_PRIV(bar);
+	struct bar_priv *bar_p = BAR_PRIV(bar);
 
 	XDestroyWindow(bar->dpy, bar_p->win);
 	free(bar_p);

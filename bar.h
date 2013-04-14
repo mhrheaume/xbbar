@@ -37,14 +37,14 @@
 #define MASK_FG2       0x0020
 #define MASK_BG        0x0040
 
-typedef struct bar {
+struct bar {
 	Display *dpy;
 	Window root;
 
 	void *priv;
-} bar_t;
+};
 
-typedef struct bar_attr {
+struct bar_attr {
 	int nrect;
 	int padding;
 	int rect_xsz;
@@ -53,12 +53,14 @@ typedef struct bar_attr {
 	char *fg1;
 	char *fg2;
 	char *bg;
-} bar_attr_t;
+};
 
-int bar_init(unsigned int b_mask, bar_attr_t b_attr, bar_t **bar_out);
+int bar_init(unsigned int b_mask,
+	struct bar_attr *b_attr,
+	struct bar **bar_out);
 
-void bar_draw(bar_t *bar, int current, int max);
-void bar_cleanup(bar_t *bar);
+void bar_draw(struct bar *bar, int current, int max);
+void bar_cleanup(struct bar *bar);
 
 char *bar_status_tostring(int status);
 
