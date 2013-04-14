@@ -28,18 +28,16 @@
 #define DEFAULT_RECT_XSZ 12
 #define DEFAULT_RECT_YSZ 20
 
-#define DEFAULT_FG1 "#3475aa"
-#define DEFAULT_FG2 "#909090"
+#define DEFAULT_FG "#3475aa"
 #define DEFAULT_BG "#1a1a1a"
 
 #define BAR_PRIV(b) (struct bar_priv*)b->priv
 
 #define DEFAULT_UNLESS_MASKED(mask, lhs, attr) \
-	if (!(mask & MASK_ ## attr)) lhs = DEFAULT_ ## attr
+	if (!(mask & BAR_MASK_ ## attr)) lhs = DEFAULT_ ## attr
 
 struct bar_priv {
 	Window win;
-
 	GC context;
 
 	int nrect;
@@ -53,8 +51,7 @@ struct bar_priv {
 	int xsz;
 	int ysz;
 
-	XColor fg1;
-	XColor fg2;
+	XColor fg;
 	XColor bg;
 };
 
@@ -118,8 +115,7 @@ void fill_defaults(unsigned int b_mask, struct bar_attr *b_attr)
 	DEFAULT_UNLESS_MASKED(b_mask, b_attr->rect_xsz, RECT_XSZ);
 	DEFAULT_UNLESS_MASKED(b_mask, b_attr->rect_ysz, RECT_YSZ);
 
-	DEFAULT_UNLESS_MASKED(b_mask, b_attr->fg1, FG1);
-	DEFAULT_UNLESS_MASKED(b_mask, b_attr->fg2, FG2);
+	DEFAULT_UNLESS_MASKED(b_mask, b_attr->fg, FG);
 	DEFAULT_UNLESS_MASKED(b_mask, b_attr->bg, BG);
 }
 
@@ -131,22 +127,12 @@ int alloc_colors(struct bar *bar, struct bar_attr *b_attr)
 
 	status = XAllocNamedColor(bar->dpy,
 		cmap,
-		b_attr->fg1,
-		&bar_p->fg1,
-		&bar_p->fg1);
+		b_attr->fg,
+		&bar_p->fg,
+		&bar_p->fg);
 
 	if (!status) {
-		return BAR_STATUS_BAD_FG1;
-	}
-
-	status = XAllocNamedColor(bar->dpy,
-		cmap,
-		b_attr->fg2,
-		&bar_p->fg2,
-		&bar_p->fg2);
-
-	if (!status) {
-		return BAR_STATUS_BAD_FG2;
+		return BAR_STATUS_BAD_FG;
 	}
 
 	status = XAllocNamedColor(bar->dpy,
@@ -209,7 +195,6 @@ int bar_init(unsigned int b_mask, struct bar_attr *b_attr, struct bar **bar_out)
 	}
 
 	create_window(bar);
-
 	bar_p->context = XCreateGC(bar->dpy, bar_p->win, 0, 0);
 
 	XMapRaised(bar->dpy, bar_p->win);
@@ -226,7 +211,7 @@ void bar_draw(struct bar *bar, int current, int max)
 
 	struct bar_priv *bar_p = BAR_PRIV(bar);
 
-	XSetForeground(bar->dpy, bar_p->context, bar_p->fg1.pixel);
+	XSetForeground(bar->dpy, bar_p->context, bar_p->fg.pixel);
 	XDrawRectangle(bar->dpy,
 		bar_p->win,
 		bar_p->context,
@@ -244,7 +229,7 @@ void bar_draw(struct bar *bar, int current, int max)
 		bar_p->xsz - 2,
 		bar_p->ysz - 2);
 
-	XSetForeground(bar->dpy, bar_p->context, bar_p->fg1.pixel);
+	XSetForeground(bar->dpy, bar_p->context, bar_p->fg.pixel);
 
 	base_x_offset = 1 + bar_p->padding;
 	base_y_offset = 1 + bar_p->padding;
@@ -306,11 +291,8 @@ char *bar_status_tostring(int status)
 	case BAR_STATUS_BAD_YSZ:
 		str = "bad rectangle y size";
 		break;
-	case BAR_STATUS_BAD_FG1:
+	case BAR_STATUS_BAD_FG:
 		str = "bad primary foreground color";
-		break;
-	case BAR_STATUS_BAD_FG2:
-		str = "bad secondary foreground color";
 		break;
 	case BAR_STATUS_BAD_BG:
 		str = "bad background color";

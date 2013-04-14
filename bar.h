@@ -24,18 +24,16 @@
 #define BAR_STATUS_BAD_PADDING  2
 #define BAR_STATUS_BAD_XSZ      3
 #define BAR_STATUS_BAD_YSZ      4
-#define BAR_STATUS_BAD_FG1      5
-#define BAR_STATUS_BAD_FG2      6
+#define BAR_STATUS_BAD_FG       5
 #define BAR_STATUS_BAD_BG       7
 #define BAR_STATUS_NOMEM        8
 
-#define MASK_NRECT     0x0001
-#define MASK_PADDING   0x0002
-#define MASK_RECT_XSZ  0x0004
-#define MASK_RECT_YSZ  0x0008
-#define MASK_FG1       0x0010
-#define MASK_FG2       0x0020
-#define MASK_BG        0x0040
+#define BAR_MASK_NRECT     0x0001
+#define BAR_MASK_PADDING   0x0002
+#define BAR_MASK_RECT_XSZ  0x0004
+#define BAR_MASK_RECT_YSZ  0x0008
+#define BAR_MASK_FG        0x0010
+#define BAR_MASK_BG        0x0040
 
 struct bar {
 	Display *dpy;
@@ -50,8 +48,7 @@ struct bar_attr {
 	int rect_xsz;
 	int rect_ysz;
 
-	char *fg1;
-	char *fg2;
+	char *fg;
 	char *bg;
 };
 

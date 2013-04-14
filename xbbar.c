@@ -77,7 +77,7 @@ void usage()
 {
 	EPRINTF(
 		"usage: xbbar [-v] [-h] [-p <padding>] [-n <nrect>] [-xs <rect_xsz>]\n"
-		"             [-ys <rect_ysz>]\n");
+		"             [-ys <rect_ysz>] [-fg <fg_color>] [-bg <bg_color>]\n");
 }
 
 // Returns the integer if >= 0, -1 otherwise
@@ -110,7 +110,7 @@ int parse_args(int argc, char **argv, struct bar_attr *b_attr, unsigned int *b_m
 			}
 
 			b_attr->padding = parse_positive_int(argv[i]);
-			*b_mask |= MASK_PADDING;
+			*b_mask |= BAR_MASK_PADDING;
 
 			if (b_attr->padding < 0) {
 				EPRINTF("-p: invalid argument\n");
@@ -123,7 +123,7 @@ int parse_args(int argc, char **argv, struct bar_attr *b_attr, unsigned int *b_m
 			}
 
 			b_attr->nrect = parse_positive_int(argv[i]);
-			*b_mask |= MASK_NRECT;
+			*b_mask |= BAR_MASK_NRECT;
 
 			if (b_attr->nrect < 0) {
 				EPRINTF("-n: invalid argument\n");
@@ -136,7 +136,7 @@ int parse_args(int argc, char **argv, struct bar_attr *b_attr, unsigned int *b_m
 			}
 
 			b_attr->rect_xsz = parse_positive_int(argv[i]);
-			*b_mask |= MASK_RECT_XSZ;
+			*b_mask |= BAR_MASK_RECT_XSZ;
 
 			if (b_attr->rect_xsz < 0) {
 				EPRINTF("-xs: invalid argument\n");
@@ -149,12 +149,28 @@ int parse_args(int argc, char **argv, struct bar_attr *b_attr, unsigned int *b_m
 			}
 
 			b_attr->rect_ysz = parse_positive_int(argv[i]);
-			*b_mask |= MASK_RECT_YSZ;
+			*b_mask |= BAR_MASK_RECT_YSZ;
 
 			if (b_attr->rect_ysz < 0) {
 				EPRINTF("-ys: invalid argument\n");
 				return 0;
 			}
+		} else if (!strcmp(argv[i], "-fg")) {
+			if (!(++i < argc)) {
+				EPRINTF("-fg: missing argument\n");
+				return 0;
+			}
+
+			b_attr->fg = argv[i];
+			*b_mask |= BAR_MASK_FG;
+		} else if (!strcmp(argv[i], "-bg")) {
+			if (!(++i < argc)) {
+				EPRINTF("-bg: missing argument\n");
+				return 0;
+			}
+
+			b_attr->bg = argv[i];
+			*b_mask |= BAR_MASK_BG;
 		} else {
 			usage();
 			return 0;
