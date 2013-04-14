@@ -58,8 +58,9 @@ typedef struct bar_priv {
 	XColor bg;
 } bar_priv_t;
 
-static void create_window(bar_t *bar);
 static void fill_defaults(unsigned int b_mask, bar_attr_t *b_attr);
+static void create_window(bar_t *bar);
+static int alloc_colors(bar_t *bar, bar_attr_t b_attr);
 
 __attribute__((always_inline))
 static inline int calc_xsize(rect_xsz, padding, nrect)
@@ -121,10 +122,48 @@ void fill_defaults(unsigned int b_mask, bar_attr_t *b_attr)
 	DEFAULT_UNLESS_MASKED(b_mask, b_attr->bg, BG);
 }
 
+int alloc_colors(bar_t *bar, bar_attr_t b_attr)
+{
+	Colormap cmap = DefaultColormap(bar->dpy, 0);
+	bar_priv_t *bar_p = BAR_PRIV(bar);
+	int status;
+
+	status = XAllocNamedColor(bar->dpy,
+		cmap,
+		b_attr.fg1,
+		&bar_p->fg1,
+		&bar_p->fg1);
+
+	if (!status) {
+		return BAR_STATUS_BAD_FG1;
+	}
+
+	status = XAllocNamedColor(bar->dpy,
+		cmap,
+		b_attr.fg2,
+		&bar_p->fg2,
+		&bar_p->fg2);
+
+	if (!status) {
+		return BAR_STATUS_BAD_FG2;
+	}
+
+	status = XAllocNamedColor(bar->dpy,
+		cmap,
+		b_attr.bg,
+		&bar_p->bg,
+		&bar_p->bg);
+
+	if (!status) {
+		return BAR_STATUS_BAD_BG;
+	}
+
+	return BAR_STATUS_SUCCESS;
+}
+
 int bar_init(unsigned int b_mask, bar_attr_t b_attr, bar_t **bar_out)
 {
-	Colormap cmap;
-	int screen;
+	int screen, status;
 
 	bar_t *bar;
 	bar_priv_t *bar_p;
@@ -152,12 +191,6 @@ int bar_init(unsigned int b_mask, bar_attr_t b_attr, bar_t **bar_out)
 	bar_p->rect_xsz = b_attr.rect_xsz;
 	bar_p->rect_ysz = b_attr.rect_ysz;
 
-	cmap = DefaultColormap(bar->dpy, 0);
-
-	XAllocNamedColor(bar->dpy, cmap, b_attr.fg1, &bar_p->fg1, &bar_p->fg1);
-	XAllocNamedColor(bar->dpy, cmap, b_attr.fg2, &bar_p->fg2, &bar_p->fg2);
-	XAllocNamedColor(bar->dpy, cmap, b_attr.bg, &bar_p->bg, &bar_p->bg);
-
 	bar_p->xsz = calc_xsize(bar_p->rect_xsz, bar_p->padding, bar_p->nrect);
 	bar_p->ysz = calc_ysize(bar_p->rect_ysz, bar_p->padding);
 
@@ -165,6 +198,13 @@ int bar_init(unsigned int b_mask, bar_attr_t b_attr, bar_t **bar_out)
 
 	bar_p->xpos = DisplayWidth(bar->dpy, screen) / 2 - (bar_p->xsz / 2);
 	bar_p->ypos = DisplayHeight(bar->dpy, screen) * 15 / 16 - (bar_p->ysz / 2);
+
+	status = alloc_colors(bar, b_attr);
+	if (status != BAR_STATUS_SUCCESS) {
+		free(bar_p);
+		free(bar);
+		return status;
+	}
 
 	create_window(bar);
 
