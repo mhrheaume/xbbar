@@ -33,9 +33,6 @@
 
 #define BAR_PRIV(b) (struct bar_priv*)b->priv
 
-#define DEFAULT_UNLESS_MASKED(mask, lhs, attr) \
-	if (!(mask & BAR_MASK_ ## attr)) lhs = DEFAULT_ ## attr
-
 struct bar_priv {
 	Window win;
 	GC gc;
@@ -55,10 +52,15 @@ struct bar_priv {
 	XColor bg;
 };
 
-static void fill_defaults(unsigned int b_mask, struct bar_attr *b_attr);
+static int set_dimensions(struct bar *bar,
+	unsigned int mask,
+	struct bar_attr *attr);
+
+static int alloc_colors(struct bar *bar,
+	unsigned int mask,
+	struct bar_attr *attr);
+
 static void create_window(struct bar *bar);
-static int alloc_colors(struct bar *bar, struct bar_attr *b_attr);
-static int set_dimensions(struct bar *bar, struct bar_attr *b_attr);
 
 __attribute__((always_inline))
 static inline int calc_xsize(rect_xsz, padding, nrect)
@@ -79,6 +81,84 @@ float get_fill_percent(int brightness_percent, float lower, float upper)
 		brightness_percent >= upper ? 1.0 :
 		brightness_percent <= lower ? 0 :
 		(float)(brightness_percent - lower) / (float)(upper - lower);
+}
+
+int set_dimensions(struct bar *bar, unsigned int mask, struct bar_attr *attr)
+{
+	int screen = DefaultScreen(bar->dpy);
+	int screen_xsz = DisplayWidth(bar->dpy, screen);
+	int screen_ysz = DisplayHeight(bar->dpy, screen);
+
+	struct bar_priv *bar_p = BAR_PRIV(bar);
+
+	bar_p->nrect = mask & BAR_MASK_NRECT ? attr->nrect : DEFAULT_NRECT;
+	if (bar_p->nrect < 0) {
+		return BAR_STATUS_BAD_NRECT;
+	}
+
+	bar_p->padding = mask & attr->padding ? attr->padding : DEFAULT_PADDING;
+	if (bar_p->padding < 0) {
+		return BAR_STATUS_BAD_PADDING;
+	}
+
+	bar_p->rect_xsz = mask & BAR_MASK_RECT_XSZ ?
+		attr->rect_xsz :
+		DEFAULT_RECT_XSZ;
+
+	// Minimum of 5: 2 for outer box, 2 for inner box, 1 for filling
+	if (bar_p->rect_xsz < 5) {
+		return BAR_STATUS_BAD_XSZ;
+	}
+
+	bar_p->rect_ysz = mask & BAR_MASK_RECT_YSZ ?
+		attr->rect_ysz :
+		DEFAULT_RECT_YSZ;
+
+	// Same as above
+	if (bar_p->rect_ysz < 5) {
+		return BAR_STATUS_BAD_YSZ;
+	}
+
+	bar_p->xsz = calc_xsize(bar_p->rect_xsz, bar_p->padding, bar_p->nrect);
+	bar_p->ysz = calc_ysize(bar_p->rect_ysz, bar_p->padding);
+
+	if (bar_p->xsz > screen_xsz || bar_p->ysz > screen_ysz * 1/8) {
+		return BAR_STATUS_TOO_LARGE;
+	}
+
+	bar_p->xpos = screen_xsz / 2 - (bar_p->xsz / 2);
+	bar_p->ypos = screen_ysz * 15 / 16 - (bar_p->ysz / 2);
+
+	return BAR_STATUS_SUCCESS;
+}
+
+int alloc_colors(struct bar *bar, unsigned int mask, struct bar_attr *attr)
+{
+	Colormap cmap = DefaultColormap(bar->dpy, 0);
+	struct bar_priv *bar_p = BAR_PRIV(bar);
+	int status;
+
+	status = XAllocNamedColor(bar->dpy,
+		cmap,
+		mask & BAR_MASK_FG ? attr->fg : DEFAULT_FG,
+		&bar_p->fg,
+		&bar_p->fg);
+
+	if (!status) {
+		return BAR_STATUS_BAD_FG;
+	}
+
+	status = XAllocNamedColor(bar->dpy,
+		cmap,
+		mask & BAR_MASK_BG ? attr->bg : DEFAULT_BG,
+		&bar_p->bg,
+		&bar_p->bg);
+
+	if (!status) {
+		return BAR_STATUS_BAD_BG;
+	}
+
+	return BAR_STATUS_SUCCESS;
 }
 
 // Creates a window and the associated graphics context
@@ -112,102 +192,15 @@ void create_window(struct bar *bar)
 	bar_p->gc = XCreateGC(bar->dpy, bar_p->win, 0, NULL);
 }
 
-void fill_defaults(unsigned int b_mask, struct bar_attr *b_attr)
-{
-	DEFAULT_UNLESS_MASKED(b_mask, b_attr->nrect, NRECT);
-	DEFAULT_UNLESS_MASKED(b_mask, b_attr->padding, PADDING);
-	DEFAULT_UNLESS_MASKED(b_mask, b_attr->rect_xsz, RECT_XSZ);
-	DEFAULT_UNLESS_MASKED(b_mask, b_attr->rect_ysz, RECT_YSZ);
-
-	DEFAULT_UNLESS_MASKED(b_mask, b_attr->fg, FG);
-	DEFAULT_UNLESS_MASKED(b_mask, b_attr->bg, BG);
-}
-
-int alloc_colors(struct bar *bar, struct bar_attr *b_attr)
-{
-	Colormap cmap = DefaultColormap(bar->dpy, 0);
-	struct bar_priv *bar_p = BAR_PRIV(bar);
-	int status;
-
-	status = XAllocNamedColor(bar->dpy,
-		cmap,
-		b_attr->fg,
-		&bar_p->fg,
-		&bar_p->fg);
-
-	if (!status) {
-		return BAR_STATUS_BAD_FG;
-	}
-
-	status = XAllocNamedColor(bar->dpy,
-		cmap,
-		b_attr->bg,
-		&bar_p->bg,
-		&bar_p->bg);
-
-	if (!status) {
-		return BAR_STATUS_BAD_BG;
-	}
-
-	return BAR_STATUS_SUCCESS;
-}
-
-int set_dimensions(struct bar *bar, struct bar_attr *b_attr)
-{
-	int screen = DefaultScreen(bar->dpy);
-	int screen_xsz = DisplayWidth(bar->dpy, screen);
-	int screen_ysz = DisplayHeight(bar->dpy, screen);
-
-	struct bar_priv *bar_p = BAR_PRIV(bar);
-
-	bar_p->nrect = b_attr->nrect;
-	if (b_attr->nrect < 0) {
-		return BAR_STATUS_BAD_NRECT;
-	}
-
-	bar_p->padding = b_attr->padding;
-	if (b_attr->padding < 0) {
-		return BAR_STATUS_BAD_PADDING;
-	}
-
-	// Minimum of 5: 2 for outer box, 2 for inner box, 1 for filling
-	bar_p->rect_xsz = b_attr->rect_xsz;
-	if (b_attr->rect_xsz < 5) {
-		return BAR_STATUS_BAD_XSZ;
-	}
-
-	// Same as above
-	bar_p->rect_ysz = b_attr->rect_ysz;
-	if (b_attr->rect_ysz < 5) {
-		return BAR_STATUS_BAD_YSZ;
-	}
-
-	bar_p->xsz = calc_xsize(bar_p->rect_xsz, bar_p->padding, bar_p->nrect);
-	bar_p->ysz = calc_ysize(bar_p->rect_ysz, bar_p->padding);
-
-	if (bar_p->xsz > screen_xsz || bar_p->ysz > screen_ysz * 1/8) {
-		return BAR_STATUS_TOO_LARGE;
-	}
-
-	bar_p->xpos = screen_xsz / 2 - (bar_p->xsz / 2);
-	bar_p->ypos = screen_ysz * 15 / 16 - (bar_p->ysz / 2);
-
-	return BAR_STATUS_SUCCESS;
-}
-
-int bar_init(unsigned int b_mask, struct bar_attr *b_attr, struct bar **bar_out)
+int bar_init(unsigned int mask, struct bar_attr *attr, struct bar **bar_out)
 {
 	int status;
 	struct bar *bar;
 	struct bar_priv *bar_p;
 
-	// TODO: b_attr being valid should probably be optional
-	if (bar_out == NULL || b_attr == NULL) {
+	if (bar_out == NULL || (attr == NULL && mask != 0)) {
 		return BAR_STATUS_BAD_PTR;
 	}
-
-	// Fill in any missing attributes with the default values
-	fill_defaults(b_mask, b_attr);
 
 	bar = malloc(sizeof(struct bar));
 	if (bar == NULL) {
@@ -225,12 +218,12 @@ int bar_init(unsigned int b_mask, struct bar_attr *b_attr, struct bar **bar_out)
 	bar->dpy = XOpenDisplay(NULL);
 	bar->root = RootWindow(bar->dpy, 0);
 
-	status = set_dimensions(bar, b_attr);
+	status = set_dimensions(bar, mask, attr);
 	if (status != BAR_STATUS_SUCCESS) {
 		goto error;
 	}
 
-	status = alloc_colors(bar, b_attr);
+	status = alloc_colors(bar, mask, attr);
 	if (status != BAR_STATUS_SUCCESS) {
 		goto error;
 	}

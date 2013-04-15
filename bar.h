@@ -54,8 +54,8 @@ struct bar_attr {
 	char *bg;
 };
 
-int bar_init(unsigned int b_mask,
-	struct bar_attr *b_attr,
+int bar_init(unsigned int mask,
+	struct bar_attr *attr,
 	struct bar **bar_out);
 
 int bar_draw(struct bar *bar, int current, int max);
