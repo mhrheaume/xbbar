@@ -38,7 +38,7 @@
 
 struct bar_priv {
 	Window win;
-	GC context;
+	GC gc;
 
 	int nrect;
 	int padding;
@@ -58,6 +58,7 @@ struct bar_priv {
 static void fill_defaults(unsigned int b_mask, struct bar_attr *b_attr);
 static void create_window(struct bar *bar);
 static int alloc_colors(struct bar *bar, struct bar_attr *b_attr);
+static int set_dimensions(struct bar *bar, struct bar_attr *b_attr);
 
 __attribute__((always_inline))
 static inline int calc_xsize(rect_xsz, padding, nrect)
@@ -80,6 +81,7 @@ float get_fill_percent(int brightness_percent, float lower, float upper)
 		(float)(brightness_percent - lower) / (float)(upper - lower);
 }
 
+// Creates a window and the associated graphics context
 void create_window(struct bar *bar)
 {
 	XSetWindowAttributes wa;
@@ -106,6 +108,8 @@ void create_window(struct bar *bar)
 		DefaultVisual(bar->dpy, screen),
 		vmask,
 		&wa);
+
+	bar_p->gc = XCreateGC(bar->dpy, bar_p->win, 0, NULL);
 }
 
 void fill_defaults(unsigned int b_mask, struct bar_attr *b_attr)
@@ -148,12 +152,59 @@ int alloc_colors(struct bar *bar, struct bar_attr *b_attr)
 	return BAR_STATUS_SUCCESS;
 }
 
+int set_dimensions(struct bar *bar, struct bar_attr *b_attr)
+{
+	int screen = DefaultScreen(bar->dpy);
+	int screen_xsz = DisplayWidth(bar->dpy, screen);
+	int screen_ysz = DisplayHeight(bar->dpy, screen);
+
+	struct bar_priv *bar_p = BAR_PRIV(bar);
+
+	bar_p->nrect = b_attr->nrect;
+	if (b_attr->nrect < 0) {
+		return BAR_STATUS_BAD_NRECT;
+	}
+
+	bar_p->padding = b_attr->padding;
+	if (b_attr->padding < 0) {
+		return BAR_STATUS_BAD_PADDING;
+	}
+
+	// Minimum of 5: 2 for outer box, 2 for inner box, 1 for filling
+	bar_p->rect_xsz = b_attr->rect_xsz;
+	if (b_attr->rect_xsz < 5) {
+		return BAR_STATUS_BAD_XSZ;
+	}
+
+	// Same as above
+	bar_p->rect_ysz = b_attr->rect_ysz;
+	if (b_attr->rect_ysz < 5) {
+		return BAR_STATUS_BAD_YSZ;
+	}
+
+	bar_p->xsz = calc_xsize(bar_p->rect_xsz, bar_p->padding, bar_p->nrect);
+	bar_p->ysz = calc_ysize(bar_p->rect_ysz, bar_p->padding);
+
+	if (bar_p->xsz > screen_xsz || bar_p->ysz > screen_ysz * 1/8) {
+		return BAR_STATUS_TOO_LARGE;
+	}
+
+	bar_p->xpos = screen_xsz / 2 - (bar_p->xsz / 2);
+	bar_p->ypos = screen_ysz * 15 / 16 - (bar_p->ysz / 2);
+
+	return BAR_STATUS_SUCCESS;
+}
+
 int bar_init(unsigned int b_mask, struct bar_attr *b_attr, struct bar **bar_out)
 {
-	int screen, status;
-
+	int status;
 	struct bar *bar;
 	struct bar_priv *bar_p;
+
+	// TODO: b_attr being valid should probably be optional
+	if (bar_out == NULL || b_attr == NULL) {
+		return BAR_STATUS_BAD_PTR;
+	}
 
 	// Fill in any missing attributes with the default values
 	fill_defaults(b_mask, b_attr);
@@ -174,62 +225,63 @@ int bar_init(unsigned int b_mask, struct bar_attr *b_attr, struct bar **bar_out)
 	bar->dpy = XOpenDisplay(NULL);
 	bar->root = RootWindow(bar->dpy, 0);
 
-	bar_p->nrect = b_attr->nrect;
-	bar_p->padding = b_attr->padding;
-	bar_p->rect_xsz = b_attr->rect_xsz;
-	bar_p->rect_ysz = b_attr->rect_ysz;
-
-	bar_p->xsz = calc_xsize(bar_p->rect_xsz, bar_p->padding, bar_p->nrect);
-	bar_p->ysz = calc_ysize(bar_p->rect_ysz, bar_p->padding);
-
-	screen = DefaultScreen(bar->dpy);
-
-	bar_p->xpos = DisplayWidth(bar->dpy, screen) / 2 - (bar_p->xsz / 2);
-	bar_p->ypos = DisplayHeight(bar->dpy, screen) * 15 / 16 - (bar_p->ysz / 2);
+	status = set_dimensions(bar, b_attr);
+	if (status != BAR_STATUS_SUCCESS) {
+		goto error;
+	}
 
 	status = alloc_colors(bar, b_attr);
 	if (status != BAR_STATUS_SUCCESS) {
-		free(bar_p);
-		free(bar);
-		return status;
+		goto error;
 	}
 
 	create_window(bar);
-	bar_p->context = XCreateGC(bar->dpy, bar_p->win, 0, 0);
 
 	XMapRaised(bar->dpy, bar_p->win);
 	XFlush(bar->dpy);
 
 	*bar_out = bar;
 	return BAR_STATUS_SUCCESS;
+
+error:
+	XCloseDisplay(bar->dpy);
+	free(bar_p);
+	free(bar);
+
+	return status;
 }
 
-void bar_draw(struct bar *bar, int current, int max)
+int bar_draw(struct bar *bar, int current, int max)
 {
 	int i, base_x_offset, base_y_offset;
 	int brightness_percent = current * 100 / max;
+	struct bar_priv *bar_p;
 
-	struct bar_priv *bar_p = BAR_PRIV(bar);
+	if (bar == NULL) {
+		return BAR_STATUS_BAD_PTR;
+	}
 
-	XSetForeground(bar->dpy, bar_p->context, bar_p->fg.pixel);
+	bar_p = BAR_PRIV(bar);
+
+	XSetForeground(bar->dpy, bar_p->gc, bar_p->fg.pixel);
 	XDrawRectangle(bar->dpy,
 		bar_p->win,
-		bar_p->context,
+		bar_p->gc,
 		0,
 		0,
 		bar_p->xsz - 1,
 		bar_p->ysz - 1);
 
-	XSetForeground(bar->dpy, bar_p->context, bar_p->bg.pixel);
+	XSetForeground(bar->dpy, bar_p->gc, bar_p->bg.pixel);
 	XFillRectangle(bar->dpy,
 		bar_p->win,
-		bar_p->context,
+		bar_p->gc,
 		1,
 		1,
 		bar_p->xsz - 2,
 		bar_p->ysz - 2);
 
-	XSetForeground(bar->dpy, bar_p->context, bar_p->fg.pixel);
+	XSetForeground(bar->dpy, bar_p->gc, bar_p->fg.pixel);
 
 	base_x_offset = 1 + bar_p->padding;
 	base_y_offset = 1 + bar_p->padding;
@@ -244,7 +296,7 @@ void bar_draw(struct bar *bar, int current, int max)
 
 		XDrawRectangle(bar->dpy,
 			bar_p->win,
-			bar_p->context,
+			bar_p->gc,
 			x_offset,
 			y_offset,
 			bar_p->rect_xsz - 1,
@@ -252,12 +304,14 @@ void bar_draw(struct bar *bar, int current, int max)
 
 		XFillRectangle(bar->dpy,
 			bar_p->win,
-			bar_p->context,
+			bar_p->gc,
 			x_offset + 2,
 			y_offset + 2,
 			(int)((bar_p->rect_xsz - 4) * fill_percent),
 			bar_p->rect_ysz - 4);
 	}
+
+	return BAR_STATUS_SUCCESS;
 }
 
 void bar_cleanup(struct bar *bar)
@@ -299,6 +353,12 @@ char *bar_status_tostring(int status)
 		break;
 	case BAR_STATUS_NOMEM:
 		str = "out of memory";
+		break;
+	case BAR_STATUS_TOO_LARGE:
+		str = "bar too large";
+		break;
+	case BAR_STATUS_BAD_PTR:
+		str = "bad pointer";
 		break;
 	default:
 		str = "unknown status";

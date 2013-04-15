@@ -27,6 +27,8 @@
 #define BAR_STATUS_BAD_FG       5
 #define BAR_STATUS_BAD_BG       7
 #define BAR_STATUS_NOMEM        8
+#define BAR_STATUS_TOO_LARGE    9
+#define BAR_STATUS_BAD_PTR     10
 
 #define BAR_MASK_NRECT     0x0001
 #define BAR_MASK_PADDING   0x0002
@@ -56,7 +58,7 @@ int bar_init(unsigned int b_mask,
 	struct bar_attr *b_attr,
 	struct bar **bar_out);
 
-void bar_draw(struct bar *bar, int current, int max);
+int bar_draw(struct bar *bar, int current, int max);
 void bar_cleanup(struct bar *bar);
 
 char *bar_status_tostring(int status);
