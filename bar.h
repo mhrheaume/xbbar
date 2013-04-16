@@ -16,8 +16,8 @@
  *  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef __BAR_H__
-#define __BAR_H__
+#ifndef BAR_H
+#define BAR_H
 
 #define BAR_STATUS_SUCCESS      0
 #define BAR_STATUS_BAD_NRECT    1
@@ -63,4 +63,4 @@ void bar_cleanup(struct bar *bar);
 
 char *bar_status_tostring(int status);
 
-#endif // __BAR_H__
+#endif // BAR_H
