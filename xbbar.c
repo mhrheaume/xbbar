@@ -38,6 +38,8 @@
 
 #define EPRINTF(...) fprintf(stderr, __VA_ARGS__)
 
+#define MSEC_TO_USEC(ms) ms * 1000
+
 #define BRIGHTNESS_DIR "/sys/class/backlight/acpi_video0"
 #define BRIGHTNESS_CURRENT BRIGHTNESS_DIR "/brightness"
 #define BRIGHTNESS_MAX BRIGHTNESS_DIR "/max_brightness"
@@ -311,7 +313,7 @@ uint8_t grab_keyboard(struct state *state)
 			break;
 		}
 
-		usleep(1000);
+		usleep(MSEC_TO_USEC(1));
 	}
 
 	return len > 0;
@@ -320,9 +322,18 @@ uint8_t grab_keyboard(struct state *state)
 void run(struct state *state)
 {
 	XEvent ev;
+	uint8_t count = 0;
 
-	while (state->running && !XNextEvent(state->bar->dpy, &ev)) {
-		handle_event(state, ev);
+	// Exit if one second passes with no activity
+	while (state->running && count < 20) {
+		while (XPending(state->bar->dpy)) {
+			count = 0;
+			XNextEvent(state->bar->dpy, &ev);
+			handle_event(state, ev);
+		}
+
+		usleep(MSEC_TO_USEC(50));
+		count++;
 	}
 }
 
