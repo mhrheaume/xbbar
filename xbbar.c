@@ -95,6 +95,7 @@ int parse_positive_int(char *str)
 	return ret < 0 ? -1 : ret;
 }
 
+// TODO: This is pretty gross..
 int parse_args(int argc, char **argv, struct bar_attr *b_attr, unsigned int *b_mask)
 {
 	unsigned int i;
@@ -153,6 +154,32 @@ int parse_args(int argc, char **argv, struct bar_attr *b_attr, unsigned int *b_m
 
 			if (b_attr->rect_ysz < 0) {
 				EPRINTF("-ys: invalid argument\n");
+				return 0;
+			}
+		} else if (!strcmp(argv[i], "-x")) {
+			if (!(++i < argc)) {
+				EPRINTF("-x: missing argument\n");
+				return 0;
+			}
+
+			b_attr->xpos = parse_positive_int(argv[i]);
+			*b_mask |= BAR_MASK_XPOS;
+
+			if (b_attr->xpos < 0) {
+				EPRINTF("-x: invalid argument\n");
+				return 0;
+			}
+		} else if (!strcmp(argv[i], "-y")) {
+			if (!(++i < argc)) {
+				EPRINTF("-y: missing argument\n");
+				return 0;
+			}
+
+			b_attr->ypos = parse_positive_int(argv[i]);
+			*b_mask |= BAR_MASK_YPOS;
+
+			if (b_attr->ypos < 0) {
+				EPRINTF("-y: invalid argument\n");
 				return 0;
 			}
 		} else if (!strcmp(argv[i], "-fg")) {

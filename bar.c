@@ -122,12 +122,27 @@ int set_dimensions(struct bar *bar, unsigned int mask, struct bar_attr *attr)
 	bar_p->xsz = calc_xsize(bar_p->rect_xsz, bar_p->padding, bar_p->nrect);
 	bar_p->ysz = calc_ysize(bar_p->rect_ysz, bar_p->padding);
 
-	if (bar_p->xsz > screen_xsz || bar_p->ysz > screen_ysz * 1/8) {
-		return BAR_STATUS_TOO_LARGE;
+	bar_p->xpos = mask & BAR_MASK_XPOS ?
+		attr->xpos :
+		screen_xsz / 2 - (bar_p->xsz / 2);
+
+	if (bar_p->xpos < 0 || bar_p->xpos > screen_xsz) {
+		return BAR_STATUS_BAD_XPOS;
 	}
 
-	bar_p->xpos = screen_xsz / 2 - (bar_p->xsz / 2);
-	bar_p->ypos = screen_ysz * 15 / 16 - (bar_p->ysz / 2);
+	bar_p->ypos = mask & BAR_MASK_YPOS ?
+		attr->ypos :
+		screen_ysz * 15 / 16 - (bar_p->ysz / 2);
+
+	if (bar_p->ypos < 0 || bar_p->ypos > screen_ysz) {
+		return BAR_STATUS_BAD_YPOS;
+	}
+
+	// Throw an error if the bar goes offscreen
+	if ((bar_p->xpos + bar_p->xsz) > screen_xsz ||
+		(bar_p->ypos + bar_p->ysz) > screen_ysz) {
+		return BAR_STATUS_TOO_LARGE;
+	}
 
 	return BAR_STATUS_SUCCESS;
 }
