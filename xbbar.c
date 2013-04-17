@@ -19,6 +19,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -44,21 +45,21 @@
 #define BRIGHTNESS_STEP 1
 
 struct state {
-	int current_brightness;
-	int max_brightness;
+	uint16_t current_brightness;
+	uint16_t max_brightness;
 
-	int running;
-	int error;
+	uint8_t running;
+	uint8_t error;
 
 	struct bar *bar;
 };
 
 static void usage();
-static int parse_positive_int(char *str);
-static int parse_args(int argc,
+static int16_t parse_positive_int(char *str);
+static uint8_t parse_args(int argc,
 	char **argv,
-	struct bar_attr *b_attr,
-	unsigned int *b_mask);
+	uint16_t *b_mask,
+	struct bar_attr *b_attr);
 
 static void write_brightness(struct state *state);
 static void brightness_up(struct state *state);
@@ -66,12 +67,12 @@ static void brightness_down(struct state *state);
 
 static void handle_kpress(struct state *state, XKeyEvent *e);
 static void handle_event(struct state *state, XEvent ev);
-static int grab_keyboard(struct state *state);
+static uint8_t grab_keyboard(struct state *state);
 
 static void run(struct state *state);
 static void cleanup(struct state *state);
 
-static struct state *state_init(unsigned int b_mask, struct bar_attr *b_attr);
+static struct state *state_init(uint16_t b_mask, struct bar_attr *b_attr);
 
 void usage()
 {
@@ -81,12 +82,12 @@ void usage()
 }
 
 // Returns the integer if >= 0, -1 otherwise
-int parse_positive_int(char *str)
+int16_t parse_positive_int(char *str)
 {
 	int ret;
 
 	errno = 0;
-	ret = (int)strtol(str, NULL, 10);
+	ret = (int16_t)strtol(str, NULL, 10);
 
 	if (errno == EINVAL || errno == ERANGE) {
 		return -1;
@@ -96,9 +97,9 @@ int parse_positive_int(char *str)
 }
 
 // TODO: This is pretty gross..
-int parse_args(int argc, char **argv, struct bar_attr *b_attr, unsigned int *b_mask)
+uint8_t parse_args(int argc, char **argv, uint16_t *b_mask, struct bar_attr *b_attr)
 {
-	unsigned int i;
+	uint16_t i;
 
 	for (i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "-v")) {
@@ -229,9 +230,10 @@ void write_brightness(struct state *state)
 
 void brightness_up(struct state *state)
 {
-	state->current_brightness += BRIGHTNESS_STEP;
-	if (state->current_brightness > state->max_brightness) {
+	if (state->current_brightness + BRIGHTNESS_STEP >= state->max_brightness) {
 		state->current_brightness = state->max_brightness;
+	} else {
+		state->current_brightness += BRIGHTNESS_STEP;
 	}
 
 	write_brightness(state);
@@ -239,9 +241,10 @@ void brightness_up(struct state *state)
 
 void brightness_down(struct state *state)
 {
-	state->current_brightness -= BRIGHTNESS_STEP;
-	if (state->current_brightness < 0) {
+	if (state->current_brightness <= BRIGHTNESS_STEP) {
 		state->current_brightness = 0;
+	} else {
+		state->current_brightness -= BRIGHTNESS_STEP;
 	}
 
 	write_brightness(state);
@@ -292,11 +295,11 @@ void handle_event(struct state *state, XEvent ev)
 	}
 }
 
-int grab_keyboard(struct state *state)
+uint8_t grab_keyboard(struct state *state)
 {
-	unsigned int len;
+	uint8_t len;
 
-	for (len = 100; len; len--) {
+	for (len = 100; len > 0; len--) {
 		int result = XGrabKeyboard(state->bar->dpy,
 			state->bar->root,
 			True,
@@ -329,10 +332,10 @@ void cleanup(struct state *state)
 	free(state);
 }
 
-struct state *state_init(unsigned int b_mask, struct bar_attr *b_attr)
+struct state *state_init(uint16_t b_mask, struct bar_attr *b_attr)
 {
 	FILE *fbr, *fmax;
-	int status;
+	uint8_t status;
 	struct state *new_state = malloc(sizeof(struct state));
 
 	if (new_state == NULL) {
@@ -347,7 +350,7 @@ struct state *state_init(unsigned int b_mask, struct bar_attr *b_attr)
 		goto error;
 	}
 
-	fscanf(fbr, "%d", &new_state->current_brightness);
+	fscanf(fbr, "%u", (unsigned int *)&new_state->current_brightness);
 	fclose(fbr);
 
 	fmax = fopen(BRIGHTNESS_MAX, "r");
@@ -357,10 +360,10 @@ struct state *state_init(unsigned int b_mask, struct bar_attr *b_attr)
 		goto error;
 	}
 
-	fscanf(fmax, "%d", &new_state->max_brightness);
+	fscanf(fmax, "%u", (unsigned int *)&new_state->max_brightness);
 	fclose(fmax);
 
-	status = bar_init(b_mask, b_attr, &new_state->bar); 
+	status = bar_init(b_mask, b_attr, &new_state->bar);
 
 	if (status != BAR_STATUS_SUCCESS) {
 		EPRINTF("Error initializing bar: %s\n", bar_status_tostring(status));
@@ -376,11 +379,12 @@ error:
 
 int main(int argc, char **argv)
 {
-	unsigned int error, b_mask = 0;
+	uint8_t error;
+	uint16_t b_mask = 0;
 	struct bar_attr b_attr;
 	struct state *state;
 
-	if (!parse_args(argc, argv, &b_attr, &b_mask)) {
+	if (!parse_args(argc, argv, &b_mask, &b_attr)) {
 		return 1;
 	}
 

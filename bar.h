@@ -19,6 +19,8 @@
 #ifndef BAR_H
 #define BAR_H
 
+#include <stdint.h>
+
 #define BAR_STATUS_SUCCESS      0
 #define BAR_STATUS_BAD_NRECT    1
 #define BAR_STATUS_BAD_PADDING  2
@@ -49,25 +51,25 @@ struct bar {
 };
 
 struct bar_attr {
-	int nrect;
-	int padding;
-	int rect_xsz;
-	int rect_ysz;
+	uint8_t nrect;
+	uint8_t padding;
+	uint8_t rect_xsz;
+	uint8_t rect_ysz;
 
-	int xpos;
-	int ypos;
+	uint16_t xpos;
+	uint16_t ypos;
 
 	char *fg;
 	char *bg;
 };
 
-int bar_init(unsigned int mask,
+uint8_t bar_init(uint16_t mask,
 	struct bar_attr *attr,
 	struct bar **bar_out);
 
-int bar_draw(struct bar *bar, int current, int max);
+uint8_t bar_draw(struct bar *bar, uint16_t current, uint16_t max);
 void bar_cleanup(struct bar *bar);
 
-char *bar_status_tostring(int status);
+const char *bar_status_tostring(uint8_t status);
 
 #endif // BAR_H

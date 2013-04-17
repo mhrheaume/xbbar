@@ -17,6 +17,7 @@
  */
 
 #include <stdlib.h>
+#include <stdint.h>
 
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
@@ -37,45 +38,45 @@ struct bar_priv {
 	Window win;
 	GC gc;
 
-	int nrect;
-	int padding;
-	int rect_xsz;
-	int rect_ysz;
+	uint8_t nrect;
+	uint8_t padding;
+	uint8_t rect_xsz;
+	uint8_t rect_ysz;
 
-	int xpos;
-	int ypos;
+	uint16_t xpos;
+	uint16_t ypos;
 
-	int xsz;
-	int ysz;
+	uint16_t xsz;
+	uint16_t ysz;
 
 	XColor fg;
 	XColor bg;
 };
 
-static int set_dimensions(struct bar *bar,
-	unsigned int mask,
+static uint8_t set_dimensions(struct bar *bar,
+	uint16_t mask,
 	struct bar_attr *attr);
 
-static int alloc_colors(struct bar *bar,
-	unsigned int mask,
+static uint8_t alloc_colors(struct bar *bar,
+	uint16_t mask,
 	struct bar_attr *attr);
 
 static void create_window(struct bar *bar);
 
 __attribute__((always_inline))
-static inline int calc_xsize(rect_xsz, padding, nrect)
+static inline uint16_t calc_xsize(rect_xsz, padding, nrect)
 {
 	return rect_xsz * nrect + padding * (nrect + 1) + 2;
 }
 
 __attribute__((always_inline))
-static inline int calc_ysize(rect_ysz, padding)
+static inline uint16_t calc_ysize(rect_ysz, padding)
 {
 	return rect_ysz + 2 * padding + 2;
 }
 
 static inline
-float get_fill_percent(int brightness_percent, float lower, float upper)
+float get_fill_percent(uint8_t brightness_percent, float lower, float upper)
 {
 	return
 		brightness_percent >= upper ? 1.0 :
@@ -83,21 +84,21 @@ float get_fill_percent(int brightness_percent, float lower, float upper)
 		(float)(brightness_percent - lower) / (float)(upper - lower);
 }
 
-int set_dimensions(struct bar *bar, unsigned int mask, struct bar_attr *attr)
+uint8_t set_dimensions(struct bar *bar, uint16_t mask, struct bar_attr *attr)
 {
-	int screen = DefaultScreen(bar->dpy);
-	int screen_xsz = DisplayWidth(bar->dpy, screen);
-	int screen_ysz = DisplayHeight(bar->dpy, screen);
+	uint8_t screen = DefaultScreen(bar->dpy);
+	uint16_t screen_xsz = DisplayWidth(bar->dpy, screen);
+	uint16_t screen_ysz = DisplayHeight(bar->dpy, screen);
 
 	struct bar_priv *bar_p = BAR_PRIV(bar);
 
 	bar_p->nrect = mask & BAR_MASK_NRECT ? attr->nrect : DEFAULT_NRECT;
-	if (bar_p->nrect < 0) {
+	if (bar_p->nrect == 0) {
 		return BAR_STATUS_BAD_NRECT;
 	}
 
 	bar_p->padding = mask & attr->padding ? attr->padding : DEFAULT_PADDING;
-	if (bar_p->padding < 0) {
+	if (bar_p->padding == 0) {
 		return BAR_STATUS_BAD_PADDING;
 	}
 
@@ -126,7 +127,7 @@ int set_dimensions(struct bar *bar, unsigned int mask, struct bar_attr *attr)
 		attr->xpos :
 		screen_xsz / 2 - (bar_p->xsz / 2);
 
-	if (bar_p->xpos < 0 || bar_p->xpos > screen_xsz) {
+	if (bar_p->xpos > screen_xsz) {
 		return BAR_STATUS_BAD_XPOS;
 	}
 
@@ -134,7 +135,7 @@ int set_dimensions(struct bar *bar, unsigned int mask, struct bar_attr *attr)
 		attr->ypos :
 		screen_ysz * 15 / 16 - (bar_p->ysz / 2);
 
-	if (bar_p->ypos < 0 || bar_p->ypos > screen_ysz) {
+	if (bar_p->ypos > screen_ysz) {
 		return BAR_STATUS_BAD_YPOS;
 	}
 
@@ -147,11 +148,11 @@ int set_dimensions(struct bar *bar, unsigned int mask, struct bar_attr *attr)
 	return BAR_STATUS_SUCCESS;
 }
 
-int alloc_colors(struct bar *bar, unsigned int mask, struct bar_attr *attr)
+uint8_t alloc_colors(struct bar *bar, uint16_t mask, struct bar_attr *attr)
 {
 	Colormap cmap = DefaultColormap(bar->dpy, 0);
 	struct bar_priv *bar_p = BAR_PRIV(bar);
-	int status;
+	uint8_t status;
 
 	status = XAllocNamedColor(bar->dpy,
 		cmap,
@@ -180,8 +181,8 @@ int alloc_colors(struct bar *bar, unsigned int mask, struct bar_attr *attr)
 void create_window(struct bar *bar)
 {
 	XSetWindowAttributes wa;
-	unsigned long vmask;
-	int screen = DefaultScreen(bar->dpy);
+	uint32_t vmask;
+	uint8_t screen = DefaultScreen(bar->dpy);
 
 	struct bar_priv *bar_p = BAR_PRIV(bar);
 
@@ -207,9 +208,9 @@ void create_window(struct bar *bar)
 	bar_p->gc = XCreateGC(bar->dpy, bar_p->win, 0, NULL);
 }
 
-int bar_init(unsigned int mask, struct bar_attr *attr, struct bar **bar_out)
+uint8_t bar_init(uint16_t mask, struct bar_attr *attr, struct bar **bar_out)
 {
-	int status;
+	uint8_t status;
 	struct bar *bar;
 	struct bar_priv *bar_p;
 
@@ -259,10 +260,11 @@ error:
 	return status;
 }
 
-int bar_draw(struct bar *bar, int current, int max)
+uint8_t bar_draw(struct bar *bar, uint16_t current, uint16_t max)
 {
-	int i, base_x_offset, base_y_offset;
-	int brightness_percent = current * 100 / max;
+	uint8_t i;
+	uint16_t base_x_offset, base_y_offset;
+	uint16_t brightness_percent = current * 100 / max;
 	struct bar_priv *bar_p;
 
 	if (bar == NULL) {
@@ -295,8 +297,8 @@ int bar_draw(struct bar *bar, int current, int max)
 	base_y_offset = 1 + bar_p->padding;
 
 	for (i = 0; i < bar_p->nrect; i++) {
-		int x_offset = base_x_offset + i * (bar_p->rect_xsz + bar_p->padding);
-		int y_offset = base_y_offset;
+		uint16_t x_offset = base_x_offset + i * (bar_p->rect_xsz + bar_p->padding);
+		uint16_t y_offset = base_y_offset;
 
 		float fill_percent = get_fill_percent(brightness_percent,
 			i * (100.0 / (float)bar_p->nrect),
@@ -333,9 +335,9 @@ void bar_cleanup(struct bar *bar)
 	free(bar);
 }
 
-char *bar_status_tostring(int status)
+const char *bar_status_tostring(uint8_t status)
 {
-	char *str;
+	const char *str;
 
 	switch (status) {
 	case BAR_STATUS_SUCCESS:
