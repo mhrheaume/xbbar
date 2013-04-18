@@ -57,8 +57,8 @@ struct state {
 };
 
 static void usage();
-static int16_t parse_positive_int(char *str);
-static uint8_t parse_args(int argc,
+static int32_t parse_positive_int(char *str);
+static uint8_t parse_args(uint16_t argc,
 	char **argv,
 	uint16_t *b_mask,
 	struct bar_attr *b_attr);
@@ -84,12 +84,12 @@ void usage()
 }
 
 // Returns the integer if >= 0, -1 otherwise
-int16_t parse_positive_int(char *str)
+int32_t parse_positive_int(char *str)
 {
-	int ret;
+	int32_t ret;
 
 	errno = 0;
-	ret = (int16_t)strtol(str, NULL, 10);
+	ret = strtol(str, NULL, 10);
 
 	if (errno == EINVAL || errno == ERANGE) {
 		return -1;
@@ -99,9 +99,10 @@ int16_t parse_positive_int(char *str)
 }
 
 // TODO: This is pretty gross..
-uint8_t parse_args(int argc, char **argv, uint16_t *b_mask, struct bar_attr *b_attr)
+uint8_t parse_args(uint16_t argc, char **argv, uint16_t *b_mask, struct bar_attr *b_attr)
 {
 	uint16_t i;
+	int32_t parsed_integer;
 
 	for (i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "-v")) {
@@ -113,78 +114,92 @@ uint8_t parse_args(int argc, char **argv, uint16_t *b_mask, struct bar_attr *b_a
 				return 0;
 			}
 
-			b_attr->padding = parse_positive_int(argv[i]);
-			*b_mask |= BAR_MASK_PADDING;
+			parsed_integer = parse_positive_int(argv[i]);
 
-			if (b_attr->padding < 0) {
+			if (parsed_integer < 0 || parsed_integer > UINT8_MAX) {
 				EPRINTF("-p: invalid argument\n");
 				return 0;
 			}
+
+			DEBUG_PRINTF(("Parsed padding: %d\n", parsed_integer));
+
+			b_attr->padding = (uint8_t)parsed_integer;
+			*b_mask |= BAR_MASK_PADDING;
 		} else if (!strcmp(argv[i], "-n")) {
 			if (!(++i < argc)) {
 				EPRINTF("-n: missing argument\n");
 				return 0;
 			}
 
-			b_attr->nrect = parse_positive_int(argv[i]);
-			*b_mask |= BAR_MASK_NRECT;
+			parsed_integer = parse_positive_int(argv[i]);
 
-			if (b_attr->nrect < 0) {
+			if (parsed_integer < 0 || parsed_integer > UINT8_MAX) {
 				EPRINTF("-n: invalid argument\n");
 				return 0;
 			}
+
+			b_attr->nrect = (uint8_t)parsed_integer;
+			*b_mask |= BAR_MASK_NRECT;
 		} else if (!strcmp(argv[i], "-xs")) {
 			if (!(++i < argc)) {
 				EPRINTF("-xs: missing argument\n");
 				return 0;
 			}
 
-			b_attr->rect_xsz = parse_positive_int(argv[i]);
-			*b_mask |= BAR_MASK_RECT_XSZ;
+			parsed_integer = parse_positive_int(argv[i]);
 
-			if (b_attr->rect_xsz < 0) {
+			if (parsed_integer < 0 || parsed_integer > UINT8_MAX) {
 				EPRINTF("-xs: invalid argument\n");
 				return 0;
 			}
+
+			b_attr->rect_xsz = (uint8_t)parsed_integer;
+			*b_mask |= BAR_MASK_RECT_XSZ;
 		} else if (!strcmp(argv[i], "-ys")) {
 			if (!(++i < argc)) {
 				EPRINTF("-ys: missing argument\n");
 				return 0;
 			}
 
-			b_attr->rect_ysz = parse_positive_int(argv[i]);
-			*b_mask |= BAR_MASK_RECT_YSZ;
+			parsed_integer = parse_positive_int(argv[i]);
 
-			if (b_attr->rect_ysz < 0) {
+			if (parsed_integer < 0 || parsed_integer > UINT8_MAX) {
 				EPRINTF("-ys: invalid argument\n");
 				return 0;
 			}
+
+			b_attr->rect_ysz = (uint8_t)parsed_integer;
+			*b_mask |= BAR_MASK_RECT_YSZ;
 		} else if (!strcmp(argv[i], "-x")) {
 			if (!(++i < argc)) {
 				EPRINTF("-x: missing argument\n");
 				return 0;
 			}
 
-			b_attr->xpos = parse_positive_int(argv[i]);
-			*b_mask |= BAR_MASK_XPOS;
+			parsed_integer = parse_positive_int(argv[i]);
 
-			if (b_attr->xpos < 0) {
+			if (parsed_integer < 0 || parsed_integer > UINT16_MAX) {
 				EPRINTF("-x: invalid argument\n");
 				return 0;
 			}
+
+			b_attr->xpos = (uint16_t)parsed_integer;
+			*b_mask |= BAR_MASK_XPOS;
 		} else if (!strcmp(argv[i], "-y")) {
 			if (!(++i < argc)) {
 				EPRINTF("-y: missing argument\n");
 				return 0;
 			}
 
-			b_attr->ypos = parse_positive_int(argv[i]);
-			*b_mask |= BAR_MASK_YPOS;
+			parsed_integer = parse_positive_int(argv[i]);
 
-			if (b_attr->ypos < 0) {
+			if (parsed_integer < 0 || parsed_integer > UINT16_MAX) {
 				EPRINTF("-y: invalid argument\n");
 				return 0;
 			}
+
+			b_attr->ypos = (uint16_t)parsed_integer;
+			*b_mask |= BAR_MASK_YPOS;
 		} else if (!strcmp(argv[i], "-fg")) {
 			if (!(++i < argc)) {
 				EPRINTF("-fg: missing argument\n");
