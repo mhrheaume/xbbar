@@ -97,7 +97,7 @@ uint8_t set_dimensions(struct bar *bar, uint16_t mask, struct bar_attr *attr)
 		return BAR_STATUS_BAD_NRECT;
 	}
 
-	bar_p->padding = mask & attr->padding ? attr->padding : DEFAULT_PADDING;
+	bar_p->padding = mask & BAR_MASK_PADDING ? attr->padding : DEFAULT_PADDING;
 	if (bar_p->padding == 0) {
 		return BAR_STATUS_BAD_PADDING;
 	}
