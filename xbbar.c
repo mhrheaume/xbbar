@@ -323,8 +323,8 @@ void run(struct state *state)
 	XEvent ev;
 	int count = 0;
 
-	// Exit if one second passes with no activity
-	while (state->running && count < 20) {
+	// Exit if 1.5 seconds pass with no activity
+	while (state->running && count < 30) {
 		while (XPending(state->bar->dpy)) {
 			count = 0;
 			XNextEvent(state->bar->dpy, &ev);
