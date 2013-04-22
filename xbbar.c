@@ -17,23 +17,22 @@
  */
 
 #include <errno.h>
+#include <limits.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
 #include <string.h>
 #include <unistd.h>
+#include <xpb.h>
 
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/XF86keysym.h>
 
-#include "version.h"
-#include "bar.h"
-
 #ifdef DEBUG
-#define DEBUG_PRINTF(x) printf x
+#define DEBUG_PRINTF(...) printf(__VA_ARGS__)
 #else
-#define DEBUG_PRINTF(x) do {} while (0)
+#define DEBUG_PRINTF(...) do {} while (0)
 #endif
 
 #define EPRINTF(...) fprintf(stderr, __VA_ARGS__)
@@ -47,21 +46,21 @@
 #define BRIGHTNESS_STEP 1
 
 struct state {
-	uint16_t current_brightness;
-	uint16_t max_brightness;
+	int current_brightness;
+	int max_brightness;
 
-	uint8_t running;
-	uint8_t error;
+	bool running;
+	bool error;
 
-	struct bar *bar;
+	struct xpb *bar;
 };
 
 static void usage();
-static int32_t parse_positive_int(char *str);
-static uint8_t parse_args(uint16_t argc,
+static bool parse_int(char *str, int *out);
+static bool parse_args(int argc,
 	char **argv,
-	uint16_t *b_mask,
-	struct bar_attr *b_attr);
+	unsigned long *mask,
+	struct xpb_attr *attr);
 
 static void write_brightness(struct state *state);
 static void brightness_up(struct state *state);
@@ -69,12 +68,12 @@ static void brightness_down(struct state *state);
 
 static void handle_kpress(struct state *state, XKeyEvent *e);
 static void handle_event(struct state *state, XEvent ev);
-static uint8_t grab_keyboard(struct state *state);
+static bool grab_keyboard(struct state *state);
 
 static void run(struct state *state);
 static void cleanup(struct state *state);
 
-static struct state *state_init(uint16_t b_mask, struct bar_attr *b_attr);
+static struct state *state_init(unsigned long mask, struct xpb_attr *attr);
 
 void usage()
 {
@@ -83,146 +82,131 @@ void usage()
 		"             [-ys <rect_ysz>] [-fg <fg_color>] [-bg <bg_color>]\n");
 }
 
-// Returns the integer if >= 0, -1 otherwise
-int32_t parse_positive_int(char *str)
+bool parse_int(char *str, int *out)
 {
-	int32_t ret;
+	long ret;
 
 	errno = 0;
 	ret = strtol(str, NULL, 10);
 
-	if (errno == EINVAL || errno == ERANGE) {
-		return -1;
+	if (errno == EINVAL || errno == ERANGE || ret > INT_MAX) {
+		return false;
 	}
 
-	return ret < 0 ? -1 : ret;
+	*out = (int)ret;
+	return true;
 }
 
 // TODO: This is pretty gross..
-uint8_t parse_args(uint16_t argc, char **argv, uint16_t *b_mask, struct bar_attr *b_attr)
+bool parse_args(int argc, char **argv, unsigned long *mask, struct xpb_attr *attr)
 {
-	uint16_t i;
-	int32_t parsed_integer;
+	int i, parsed_int;
 
 	for (i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "-v")) {
-			printf("xbbar-"XBBAR_VERSION"\n");
-			return 0;
+			printf("xbbar-"VERSION"\n");
+			return false;
 		} else if (!strcmp(argv[i], "-p")) {
 			if (!(++i < argc)) {
 				EPRINTF("-p: missing argument\n");
-				return 0;
+				return false;
 			}
 
-			parsed_integer = parse_positive_int(argv[i]);
-
-			if (parsed_integer < 0 || parsed_integer > UINT8_MAX) {
+			if (!parse_int(argv[i], &parsed_int)) {
 				EPRINTF("-p: invalid argument\n");
 				return 0;
 			}
 
-			DEBUG_PRINTF(("Parsed padding: %d\n", parsed_integer));
-
-			b_attr->padding = (uint8_t)parsed_integer;
-			*b_mask |= BAR_MASK_PADDING;
+			attr->padding = parsed_int;
+			*mask |= XPB_MASK_PADDING;
 		} else if (!strcmp(argv[i], "-n")) {
 			if (!(++i < argc)) {
 				EPRINTF("-n: missing argument\n");
-				return 0;
+				return false;
 			}
 
-			parsed_integer = parse_positive_int(argv[i]);
-
-			if (parsed_integer < 0 || parsed_integer > UINT8_MAX) {
+			if (!parse_int(argv[i], &parsed_int)) {
 				EPRINTF("-n: invalid argument\n");
-				return 0;
+				return false;
 			}
 
-			b_attr->nrect = (uint8_t)parsed_integer;
-			*b_mask |= BAR_MASK_NRECT;
+			attr->nrect = parsed_int;
+			*mask |= XPB_MASK_NRECT;
 		} else if (!strcmp(argv[i], "-xs")) {
 			if (!(++i < argc)) {
 				EPRINTF("-xs: missing argument\n");
-				return 0;
+				return false;
 			}
 
-			parsed_integer = parse_positive_int(argv[i]);
-
-			if (parsed_integer < 0 || parsed_integer > UINT8_MAX) {
+			if (!parse_int(argv[i], &parsed_int)) {
 				EPRINTF("-xs: invalid argument\n");
-				return 0;
+				return false;
 			}
 
-			b_attr->rect_xsz = (uint8_t)parsed_integer;
-			*b_mask |= BAR_MASK_RECT_XSZ;
+			attr->rect_xsz = parsed_int;
+			*mask |= XPB_MASK_RECT_XSZ;
 		} else if (!strcmp(argv[i], "-ys")) {
 			if (!(++i < argc)) {
 				EPRINTF("-ys: missing argument\n");
-				return 0;
+				return false;
 			}
 
-			parsed_integer = parse_positive_int(argv[i]);
-
-			if (parsed_integer < 0 || parsed_integer > UINT8_MAX) {
+			if (!parse_int(argv[i], &parsed_int)) {
 				EPRINTF("-ys: invalid argument\n");
-				return 0;
+				return false;
 			}
 
-			b_attr->rect_ysz = (uint8_t)parsed_integer;
-			*b_mask |= BAR_MASK_RECT_YSZ;
+			attr->rect_ysz = parsed_int;
+			*mask |= XPB_MASK_RECT_YSZ;
 		} else if (!strcmp(argv[i], "-x")) {
 			if (!(++i < argc)) {
 				EPRINTF("-x: missing argument\n");
-				return 0;
+				return false;
 			}
 
-			parsed_integer = parse_positive_int(argv[i]);
-
-			if (parsed_integer < 0 || parsed_integer > UINT16_MAX) {
+			if (!parse_int(argv[i], &parsed_int)) {
 				EPRINTF("-x: invalid argument\n");
-				return 0;
+				return false;
 			}
 
-			b_attr->xpos = (uint16_t)parsed_integer;
-			*b_mask |= BAR_MASK_XPOS;
+			attr->xpos = parsed_int;
+			*mask |= XPB_MASK_XPOS;
 		} else if (!strcmp(argv[i], "-y")) {
 			if (!(++i < argc)) {
 				EPRINTF("-y: missing argument\n");
-				return 0;
+				return false;
 			}
 
-			parsed_integer = parse_positive_int(argv[i]);
-
-			if (parsed_integer < 0 || parsed_integer > UINT16_MAX) {
+			if (parse_int(argv[i], &parsed_int)) {
 				EPRINTF("-y: invalid argument\n");
-				return 0;
+				return false;
 			}
 
-			b_attr->ypos = (uint16_t)parsed_integer;
-			*b_mask |= BAR_MASK_YPOS;
+			attr->ypos = parsed_int;
+			*mask |= XPB_MASK_YPOS;
 		} else if (!strcmp(argv[i], "-fg")) {
 			if (!(++i < argc)) {
 				EPRINTF("-fg: missing argument\n");
-				return 0;
+				return false;
 			}
 
-			b_attr->fg = argv[i];
-			*b_mask |= BAR_MASK_FG;
+			attr->fg = argv[i];
+			*mask |= XPB_MASK_FG;
 		} else if (!strcmp(argv[i], "-bg")) {
 			if (!(++i < argc)) {
 				EPRINTF("-bg: missing argument\n");
-				return 0;
+				return false;
 			}
 
-			b_attr->bg = argv[i];
-			*b_mask |= BAR_MASK_BG;
+			attr->bg = argv[i];
+			*mask |= XPB_MASK_BG;
 		} else {
 			usage();
-			return 0;
+			return false;
 		}
 	}
 
-	return 1;
+	return true;
 }
 
 void write_brightness(struct state *state)
@@ -231,15 +215,15 @@ void write_brightness(struct state *state)
 	if (fbr == NULL) {
 		EPRINTF("Unable to write current brightness to %s.\n", BRIGHTNESS_MAX);
 
-		state->running = 0;
-		state->error = 1;
+		state->running = false;
+		state->error = true;
 		return;
 	}
 
-	DEBUG_PRINTF(("current: %d; max: %d; perc: %d\n",
+	DEBUG_PRINTF("current: %d; max: %d; perc: %d\n",
 		state->current_brightness,
 		state->max_brightness,
-		state->current_brightness * 100 / state->max_brightness));
+		state->current_brightness * 100 / state->max_brightness);
 
 	fprintf(fbr, "%d", state->current_brightness);
 	fclose(fbr);
@@ -278,17 +262,17 @@ void handle_kpress(struct state *state, XKeyEvent *e)
 	case XK_K:
 	case XK_k:
 		brightness_up(state);
-		bar_draw(state->bar, state->current_brightness, state->max_brightness);
+		xpb_draw(state->bar, state->current_brightness, state->max_brightness);
 		break;
 	case XF86XK_MonBrightnessDown:
 	case XK_Down:
 	case XK_J:
 	case XK_j:
 		brightness_down(state);
-		bar_draw(state->bar, state->current_brightness, state->max_brightness);
+		xpb_draw(state->bar, state->current_brightness, state->max_brightness);
 		break;
 	case XK_Escape:
-		state->running = 0;
+		state->running = false;
 		break;
 	}
 }
@@ -298,7 +282,7 @@ void handle_event(struct state *state, XEvent ev)
 	switch (ev.type) {
 	case Expose:
 		if (ev.xexpose.count == 0) {
-			bar_draw(state->bar,
+			xpb_draw(state->bar,
 				state->current_brightness,
 				state->max_brightness);
 		}
@@ -312,9 +296,9 @@ void handle_event(struct state *state, XEvent ev)
 	}
 }
 
-uint8_t grab_keyboard(struct state *state)
+bool grab_keyboard(struct state *state)
 {
-	uint8_t len;
+	int len;
 
 	for (len = 100; len > 0; len--) {
 		int result = XGrabKeyboard(state->bar->dpy,
@@ -337,7 +321,7 @@ uint8_t grab_keyboard(struct state *state)
 void run(struct state *state)
 {
 	XEvent ev;
-	uint8_t count = 0;
+	int count = 0;
 
 	// Exit if one second passes with no activity
 	while (state->running && count < 20) {
@@ -354,14 +338,14 @@ void run(struct state *state)
 
 void cleanup(struct state *state)
 {
-	bar_cleanup(state->bar);
+	xpb_cleanup(state->bar);
 	free(state);
 }
 
-struct state *state_init(uint16_t b_mask, struct bar_attr *b_attr)
+struct state *state_init(unsigned long mask, struct xpb_attr *attr)
 {
 	FILE *fbr, *fmax;
-	uint8_t status;
+	int status;
 	struct state *new_state = malloc(sizeof(struct state));
 
 	if (new_state == NULL) {
@@ -376,7 +360,7 @@ struct state *state_init(uint16_t b_mask, struct bar_attr *b_attr)
 		goto error;
 	}
 
-	fscanf(fbr, "%u", (unsigned int *)&new_state->current_brightness);
+	fscanf(fbr, "%d", &new_state->current_brightness);
 	fclose(fbr);
 
 	fmax = fopen(BRIGHTNESS_MAX, "r");
@@ -386,13 +370,13 @@ struct state *state_init(uint16_t b_mask, struct bar_attr *b_attr)
 		goto error;
 	}
 
-	fscanf(fmax, "%u", (unsigned int *)&new_state->max_brightness);
+	fscanf(fmax, "%d", &new_state->max_brightness);
 	fclose(fmax);
 
-	status = bar_init(b_mask, b_attr, &new_state->bar);
+	status = xpb_init(mask, attr, &new_state->bar);
 
-	if (status != BAR_STATUS_SUCCESS) {
-		EPRINTF("Error initializing bar: %s\n", bar_status_tostring(status));
+	if (!XPB_SUCCESS(status)) {
+		EPRINTF("Error initializing bar: %s\n", xpb_status_tostring(status));
 		goto error;
 	}
 
@@ -405,23 +389,23 @@ error:
 
 int main(int argc, char **argv)
 {
-	uint8_t error;
-	uint16_t b_mask = 0;
-	struct bar_attr b_attr;
+	int error;
+	unsigned long mask = 0;
+	struct xpb_attr attr;
 	struct state *state;
 
-	if (!parse_args(argc, argv, &b_mask, &b_attr)) {
+	if (!parse_args(argc, argv, &mask, &attr)) {
 		return 1;
 	}
 
-	state = state_init(b_mask, &b_attr);
+	state = state_init(mask, &attr);
 
 	if (state == NULL) {
 		return 1;
 	}
 
 	state->running = grab_keyboard(state);
-	state->error = 0;
+	state->error = false;
 
 	run(state);
 
