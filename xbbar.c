@@ -177,7 +177,7 @@ bool parse_args(int argc, char **argv, unsigned long *mask, struct xpb_attr *att
 				return false;
 			}
 
-			if (parse_int(argv[i], &parsed_int)) {
+			if (!parse_int(argv[i], &parsed_int)) {
 				EPRINTF("-y: invalid argument\n");
 				return false;
 			}

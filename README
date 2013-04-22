@@ -30,4 +30,4 @@ Notes
 - Since this program modifies the sysfs brightness files, it will probably need
   to be run as root.
 - You may also need LD_LIBRARY_FLAGS=/usr/local/lib if libxpb has been
-  installed to the default location.
+  installed to it's default location.
