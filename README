@@ -8,7 +8,9 @@ Awesome, etc).
 
 Requirements
 ------------
-In order to build xbbar you need the Xlib header files.
+In order to build xbbar you need:
+- libX11
+- libxpb (https://www.github.com/mhrheaume/libxpb)
 
 Installation
 ------------
@@ -22,3 +24,10 @@ Running
 - Use XK_MonBrightnessDown, Down, or J to decrease brightness.
 - Exit with ESC.
 - Run 'xbbar -h' to see options.
+
+Notes
+-----
+- Since this program modifies the sysfs brightness files, it will probably need
+  to be run as root.
+- You may also need LD_LIBRARY_FLAGS=/usr/local/lib if libxpb has been
+  installed to the default location.
